@@ -1,0 +1,553 @@
+Mình đồng ý với hướng này.
+
+Sai lầm phổ biến của nhiều dự án là thiết kế quá "enterprise", quá nhiều module, cuối cùng AI coder cũng không viết nhanh hơn được. Với dự án này, điều quan trọng nhất là:
+
+> Bé nhìn thấy vui, thích dùng mỗi ngày, tự thiết kế được thời khóa biểu, AI hiểu đúng bé và hỗ trợ bé.
+
+Vì vậy kiến trúc nên đơn giản nhưng có khả năng mở rộng.
+
+---
+
+# TRIẾT LÝ THIẾT KẾ
+
+## Frontend là trung tâm
+
+Toàn bộ trải nghiệm tập trung vào:
+
+* trực quan
+* nhiều hình ảnh
+* ít chữ
+* kéo thả
+* sinh động
+* giống trò chơi
+
+Backend chỉ phục vụ:
+
+* lưu dữ liệu
+* AI context
+* đồng bộ
+
+---
+
+# KIẾN TRÚC TỔNG THỂ
+
+```text
+Cloudflare Pages
+
+├── Frontend (NextJS PWA)
+│
+├── AI Chat
+│
+├── Schedule Builder
+│
+├── Activity Library
+│
+├── Reward System
+│
+└── Parent Dashboard
+
+
+Supabase
+
+├── Database
+├── Storage
+└── Auth
+
+
+External AI
+
+├── OpenAI
+├── Gemini
+├── Claude
+└── OpenRouter
+```
+
+---
+
+# FRONTEND
+
+## Màn hình 1
+
+### Chọn người chơi
+
+```text
+🌈 Chào mừng
+
+🐰 Lan
+
+🦊 Nam
+
+🐼 Na
+
+➕ Thêm bé
+
+⚙️ Phụ huynh
+```
+
+---
+
+# Màn hình 2
+
+### Trang chủ của bé
+
+```text
+🐰 Lan
+
+🌟 Hôm nay là ngày Khoa Học
+
+📅 Thời khóa biểu
+
+🎮 Trò chơi
+
+🧪 Khám phá
+
+🏆 Thành tích
+
+🤖 Bạn đồng hành AI
+```
+
+---
+
+# Màn hình 3
+
+### Thiết kế lịch
+
+Dạng kéo thả
+
+```text
+THỨ 2
+
+08:00 [🌿 Tưới cây]
+
+09:00 [🎨 Vẽ tranh]
+
+10:00 [🧪 Thí nghiệm]
+
+➕ Thêm hoạt động
+```
+
+---
+
+## Hoạt động là card lớn
+
+```text
+🌿 Tưới cây
+
+📷 ảnh lớn
+
+⏰ 15 phút
+
+⭐ Dễ
+
+Con học được:
+- chăm sóc cây
+- quan sát thiên nhiên
+```
+
+---
+
+# THƯ VIỆN HOẠT ĐỘNG
+
+Không hardcode.
+
+Mọi hoạt động nằm trong database.
+
+---
+
+## Activity
+
+```text
+Tên
+
+Mô tả
+
+Ảnh
+
+Chủ đề
+
+Độ tuổi
+
+Thời lượng
+
+Các bước thực hiện
+
+Mục tiêu học tập
+
+Vật dụng cần chuẩn bị
+```
+
+---
+
+# NHÓM CHỦ ĐỀ
+
+```text
+🌿 Thiên nhiên
+
+🧪 Khoa học
+
+⚽ Thể thao
+
+🎨 Nghệ thuật
+
+❤️ Gia đình
+
+😊 Cảm xúc
+
+📖 Đọc sách
+
+🌎 Khám phá thế giới
+
+🛠 Kỹ năng sống
+
+🎵 Âm nhạc
+```
+
+---
+
+# AI TRỢ LÝ
+
+Đây là phần quan trọng nhất.
+
+AI không được trả lời như chatbot chung chung.
+
+AI phải đọc:
+
+```text
+Hồ sơ bé
+
+Sở thích
+
+Tuổi
+
+Thời khóa biểu
+
+Lịch sử hoạt động
+
+Nhật ký cảm xúc
+```
+
+rồi mới trả lời.
+
+---
+
+## Ví dụ
+
+Bé hỏi:
+
+```text
+Hôm nay con chơi gì vui?
+```
+
+AI đọc dữ liệu:
+
+```text
+Lan
+
+7 tuổi
+
+Thích cây cối
+
+Thích vẽ
+
+Không thích đá bóng
+```
+
+AI sẽ trả lời:
+
+```text
+Lan ơi,
+
+Hôm nay con có thể:
+
+🌿 đi tìm 5 loại lá khác nhau
+
+sau đó
+
+🎨 vẽ chiếc lá con thích nhất
+```
+
+---
+
+# AI TẠO LỊCH
+
+Bé bấm:
+
+```text
+🤖 Tạo giúp con tuần mới
+```
+
+AI đọc:
+
+```text
+Tuổi
+
+Sở thích
+
+Hoạt động đã làm
+
+Hoạt động ít làm
+```
+
+sau đó tạo:
+
+```text
+Thứ 2
+Thiên nhiên
+
+Thứ 3
+Khoa học
+
+Thứ 4
+Gia đình
+...
+```
+
+---
+
+# AI TẠO HOẠT ĐỘNG MỚI
+
+Admin nhập API Key.
+
+AI có quyền:
+
+## Tạo hoạt động
+
+Ví dụ:
+
+```text
+Tạo 20 trò chơi thiên nhiên cho bé 7 tuổi
+```
+
+AI sinh:
+
+```text
+Tên
+
+Mô tả
+
+Hướng dẫn
+
+Mục tiêu
+
+Ảnh minh họa
+```
+
+Lưu vào database.
+
+---
+
+# AI TẠO HÌNH ẢNH
+
+Admin chọn:
+
+```text
+Cho phép AI tạo ảnh
+```
+
+AI tạo:
+
+* sticker
+* avatar
+* minh họa hoạt động
+* hình nền chủ đề
+
+Lưu:
+
+```text
+Supabase Storage
+```
+
+---
+
+# DATABASE ĐƠN GIẢN
+
+## children
+
+```text
+id
+
+name
+
+avatar
+
+age
+
+favorite_color
+
+favorite_animal
+```
+
+---
+
+## schedules
+
+```text
+id
+
+child_id
+
+week
+
+title
+```
+
+---
+
+## schedule_items
+
+```text
+schedule_id
+
+day
+
+time
+
+activity_id
+```
+
+---
+
+## activities
+
+```text
+id
+
+title
+
+theme
+
+description
+
+image_url
+
+duration
+
+difficulty
+
+instructions
+
+materials
+
+learning_goals
+```
+
+---
+
+## chat_history
+
+```text
+child_id
+
+message
+
+role
+
+created_at
+```
+
+---
+
+## rewards
+
+```text
+child_id
+
+coins
+
+xp
+
+badges
+```
+
+---
+
+# STORAGE
+
+Supabase Storage
+
+```text
+avatars/
+
+activity_images/
+
+theme_images/
+
+generated_images/
+
+exports/
+```
+
+---
+
+# ADMIN
+
+## Quản lý AI
+
+```text
+OpenAI Key
+
+Claude Key
+
+Gemini Key
+
+OpenRouter Key
+```
+
+---
+
+## Chọn AI mặc định
+
+```text
+OpenAI
+
+Claude
+
+Gemini
+
+OpenRouter
+```
+
+---
+
+# MỐI LIÊN HỆ BACKEND
+
+```text
+Child
+│
+├── Schedule
+│
+├── Chat History
+│
+├── Rewards
+│
+└── Activity History
+
+
+Activity
+│
+├── Theme
+├── Images
+└── Instructions
+
+
+AI
+│
+├── Read Child Data
+├── Read Schedule
+├── Read Activity Library
+└── Generate Suggestions
+```
+
+---
+
+# NGUYÊN TẮC QUAN TRỌNG NHẤT CHO AI CODER
+
+Khi giao cho Codex, Claude Code hoặc Cursor:
+
+**Không xây app theo hướng "lịch biểu".**
+
+Hãy xây theo hướng:
+
+> **"Ứng dụng phiêu lưu và khám phá dành cho trẻ em, trong đó thời khóa biểu chỉ là công cụ giúp bé xây dựng cuộc phiêu lưu của riêng mình."**
+
+Nếu giữ đúng nguyên tắc này thì giao diện, hoạt động, AI hỗ trợ và trải nghiệm sẽ hấp dẫn với trẻ hơn rất nhiều so với một ứng dụng quản lý thời gian thông thường.

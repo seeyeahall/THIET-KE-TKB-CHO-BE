@@ -1,0 +1,506 @@
+Đây là hướng rất đúng. Thay vì một file `blueprint.md` khổng lồ, nên tách thành một bộ tài liệu để AI coder (Codex, Claude Code, Cursor Agent, OpenHands...) đọc theo từng phần.
+
+Mình đề xuất bộ tài liệu như sau:
+
+```text
+/docs
+
+00_project_overview.md
+
+01_product_vision.md
+
+02_ui_ux_design.md
+
+03_user_flow.md
+
+04_child_experience.md
+
+05_ai_system.md
+
+06_activity_library.md
+
+07_schedule_system.md
+
+08_audio_voice_system.md
+
+09_database_schema.md
+
+10_backend_architecture.md
+
+11_admin_panel.md
+
+12_api_provider_system.md
+
+13_storage_system.md
+
+14_deployment.md
+
+15_mvp_roadmap.md
+```
+
+Dưới đây là nội dung cốt lõi của từng file.
+
+---
+
+# 00_project_overview.md
+
+# TÊN DỰ ÁN
+
+Kid Adventure Planner
+
+---
+
+# MỤC TIÊU
+
+Xây dựng ứng dụng tiếng Việt dành cho trẻ em.
+
+Ứng dụng giúp trẻ:
+
+* tự thiết kế thời khóa biểu ngày
+* tự thiết kế thời khóa biểu tuần
+* khám phá thế giới xung quanh
+* phát triển toàn diện
+
+Thông qua:
+
+* trò chơi
+* hoạt động thực tế
+* AI đồng hành
+* phần thưởng
+* hình ảnh
+* âm thanh
+
+---
+
+# TRIẾT LÝ
+
+Không xây ứng dụng quản lý thời gian.
+
+Xây ứng dụng phiêu lưu khám phá dành cho trẻ em.
+
+Thời khóa biểu chỉ là công cụ hỗ trợ.
+
+---
+
+# ĐỐI TƯỢNG
+
+Trẻ em:
+
+* 6 tuổi
+* 7 tuổi
+* 8 tuổi
+* 9 tuổi
+* 10 tuổi
+
+Phụ huynh là người quản trị.
+
+---
+
+# CÔNG NGHỆ
+
+Frontend:
+
+* NextJS
+* TypeScript
+* Tailwind
+
+Backend:
+
+* Supabase
+
+Hosting:
+
+* Cloudflare Pages
+
+Ngôn ngữ:
+
+* 100% tiếng Việt
+
+---
+
+END
+
+---
+
+# 05_ai_system.md
+
+# MỤC TIÊU
+
+AI phải là bạn đồng hành của bé.
+
+Không phải chatbot thông thường.
+
+---
+
+# AI PHẢI ĐỌC
+
+Trước khi trả lời:
+
+1. hồ sơ bé
+
+2. độ tuổi
+
+3. sở thích
+
+4. lịch tuần hiện tại
+
+5. lịch sử hoạt động
+
+6. lịch sử trò chuyện
+
+7. phần thưởng đã đạt được
+
+---
+
+# AI CÓ THỂ
+
+## Trò chuyện
+
+Ví dụ:
+
+"Bé hôm nay nên chơi gì?"
+
+---
+
+## Tạo lịch
+
+Ví dụ:
+
+"Tạo cho con lịch tuần mới"
+
+---
+
+## Tạo hoạt động
+
+Ví dụ:
+
+"Tạo trò chơi thiên nhiên cho bé 7 tuổi"
+
+---
+
+## Tạo hình ảnh
+
+Ví dụ:
+
+"Tạo hình ảnh khu rừng kỳ diệu"
+
+---
+
+## Tạo chủ đề mới
+
+Ví dụ:
+
+"Tuần này con muốn chủ đề khủng long"
+
+---
+
+# AI PROVIDER
+
+Không cố định.
+
+Admin có thể thêm:
+
+* OpenAI
+* Gemini
+* Claude
+* OpenRouter
+* Ollama
+* bất kỳ API tương thích OpenAI
+
+---
+
+# API REGISTRY
+
+Mỗi provider gồm:
+
+Tên
+
+Endpoint
+
+API Key
+
+Model
+
+Loại
+
+Trạng thái
+
+---
+
+# KIỂM TRA API
+
+Khi lưu API:
+
+App phải:
+
+1. gửi request test
+
+2. nhận phản hồi
+
+3. xác nhận thành công
+
+Nếu thất bại:
+
+không cho kích hoạt
+
+---
+
+# API BẮT BUỘC
+
+Nếu chưa có AI khả dụng:
+
+Hiện màn hình:
+
+"Vui lòng cấu hình AI trước khi sử dụng."
+
+---
+
+# AI VOICE
+
+AI phải có thể:
+
+* nói chuyện với bé
+* đọc hoạt động
+* đọc thời khóa biểu
+* kể chuyện
+
+---
+
+# TTS
+
+Hỗ trợ:
+
+* OpenAI TTS
+* Gemini TTS
+* ElevenLabs
+* Edge TTS
+
+---
+
+# STT
+
+Hỗ trợ:
+
+* Whisper
+* Gemini Speech
+* Browser Speech API
+
+---
+
+END
+
+---
+
+# 10_backend_architecture.md
+
+# KIẾN TRÚC BACKEND
+
+Mục tiêu:
+
+Đơn giản
+Dễ mở rộng
+Dễ bảo trì
+
+---
+
+# MODULE
+
+01_AUTH
+
+Đăng nhập phụ huynh
+
+Đăng nhập trẻ em
+
+---
+
+02_CHILDREN
+
+Thông tin trẻ
+
+Ảnh đại diện
+
+Sở thích
+
+---
+
+03_SCHEDULE
+
+Lịch ngày
+
+Lịch tuần
+
+Lịch tháng
+
+---
+
+04_ACTIVITIES
+
+Thư viện hoạt động
+
+Trò chơi
+
+Khám phá
+
+Khoa học
+
+Thiên nhiên
+
+---
+
+05_AI
+
+Quản lý AI Provider
+
+Quản lý Prompt
+
+Gọi AI
+
+---
+
+06_AUDIO
+
+Âm thanh hệ thống
+
+TTS
+
+STT
+
+---
+
+07_REWARDS
+
+Xu
+
+Huy hiệu
+
+Thành tích
+
+---
+
+08_CHAT
+
+Lưu lịch sử trò chuyện
+
+Ngữ cảnh AI
+
+---
+
+09_STORAGE
+
+Ảnh
+
+Âm thanh
+
+Avatar
+
+Tài liệu PDF
+
+---
+
+# QUAN HỆ
+
+Child
+
+├── Schedule
+
+├── Chat
+
+├── Rewards
+
+├── Activity History
+
+└── AI Context
+
+---
+
+# DATABASE
+
+families
+
+children
+
+activities
+
+schedules
+
+schedule_items
+
+chat_history
+
+rewards
+
+badges
+
+ai_providers
+
+settings
+
+media_assets
+
+---
+
+# MEDIA ASSETS
+
+Lưu:
+
+* ảnh hoạt động
+* ảnh chủ đề
+* avatar
+* sticker
+* âm thanh
+
+---
+
+# CLOUD STORAGE
+
+Supabase Storage
+
+Bucket:
+
+avatars/
+
+activities/
+
+themes/
+
+stickers/
+
+audio/
+
+generated/
+
+exports/
+
+---
+
+# QUY TẮC NÂNG CẤP
+
+Không được sửa trực tiếp module cũ.
+
+Module mới phải:
+
+* độc lập
+* có interface rõ ràng
+* có migration database
+
+Để AI coder dễ nâng cấp.
+
+---
+
+END
+
+Bộ ba file trên là phần lõi. Sau đó AI coder có thể tiếp tục sinh các file còn lại (`02_ui_ux_design.md`, `06_activity_library.md`, `09_database_schema.md`, `11_admin_panel.md`...) theo cùng cấu trúc.
+
+Một yêu cầu mình khuyến nghị bổ sung ngay vào blueprint:
+
+**AI Context Memory Layer**
+
+Mỗi lần AI trả lời bé phải tự động nạp:
+
+* hồ sơ bé
+* lịch hiện tại
+* sở thích
+* các hoạt động gần đây
+* các cuộc trò chuyện gần đây
+
+để AI luôn trả lời đúng ngữ cảnh của từng bé thay vì như một chatbot mới mỗi lần mở ứng dụng. Điều này sẽ làm trải nghiệm "bạn đồng hành AI" tự nhiên hơn rất nhiều.

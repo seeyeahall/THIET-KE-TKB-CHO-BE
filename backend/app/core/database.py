@@ -1,0 +1,18 @@
+from functools import lru_cache
+
+from supabase import Client, create_client
+
+from app.core.config import get_settings
+
+
+class DatabaseNotConfiguredError(RuntimeError):
+    pass
+
+
+@lru_cache
+def get_supabase_client() -> Client:
+    settings = get_settings()
+    if not settings.supabase_url or not settings.supabase_service_role_key:
+        raise DatabaseNotConfiguredError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
+    return create_client(settings.supabase_url, settings.supabase_service_role_key)
+

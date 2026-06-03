@@ -6,3 +6,19 @@ body {
   background: linear-gradient(135deg, #fef9c3 0%, #dbeafe 100%);
   min-height: 100vh;
 }
+
+@layer components {
+  .btn-kid {
+    @apply transition-transform duration-200 hover:scale-105 active:scale-95;
+  }
+  .card-kid {
+    @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

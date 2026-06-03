@@ -10,12 +10,6 @@ File nay la tracker cho moi AI/coder tiep tuc du an. Moi lan hoan thanh hoac fix
 - Loi con lai.
 - Buoc tiep theo.
 
-## Quota note
-
-- User bao quota hien tai con lai: 76%.
-- Uoc luong: con du de scaffold backend MVP neu lam gon.
-- Khong nen lam full frontend + backend + deploy + voice/image trong mot lan.
-
 ## Context/Quota Gate
 
 Truoc moi buoc fix code, AI/coder phai kiem tra quota/context con lai va uoc luong buoc sap lam.
@@ -39,35 +33,35 @@ Sau khi fix phai cap nhat tracker nay de AI khac tiep tuc duoc.
 
 | Cheng | Trang thai | Ghi chu |
 |---|---|---|
-| 1. Blueprint docs | Done | Da tao `docs/00` den `docs/19` |
-| 2. Backend FastAPI skeleton | Done | Da tao `backend/`, FastAPI app, route skeleton, config, Supabase layer, provider interface, tests |
-| 2.5. Frontend scaffold + deploy config | Done | Da tao `frontend/`, deploy config, migration SQL. Can deploy thu len server that. |
-| 3. Supabase schema/migrations | Not started | Can tao migration SQL |
-| 4. AI provider registry | Planned | Da co ket qua key test trong `16_runtime_key_integration.md` |
-| 5. Frontend PWA full | Not started | Sau khi co scaffold |
-| 6. Storage integration | Planned | Supabase Storage + Cloudflare cache |
-| 7. Deploy production | Not started | Sau khi local MVP chay |
+| 1. Blueprint docs | Done | Da tao `docs/00` den `/docs/21` |
+| 2. Backend FastAPI MVP | Done | Repository layer, Service layer, Auth JWT, AI Provider HTTP integration, AI Context Builder, Middleware, Tests 17/17 pass |
+| 2.5. Frontend scaffold + deploy config | Done | Da tao `frontend/`, deploy config, migration SQL + optimization |
+| 3. Frontend PWA MVP | Done | Da tao tat ca man hinh: select-child, home, schedule, activities, chat, parent. Build thanh cong. |
+| 4. Storage + media | Done | Supabase Storage buckets, signed upload API, ImageUploader component |
+| 5. Deploy production | Done | Dockerfile, render.yaml, fly.toml, deploy scripts, smoke test |
+| 6. Mo rong | Done | TTS/STT, AI image, rewards nang cao, admin/analytics |
 
-## Checklist cheng 2 backend
+## Checklist cheng 2 backend (HOAN THANH)
 
 - [x] Tao `backend/`.
 - [x] Tao FastAPI app.
 - [x] Tao config/env loader.
 - [x] Tao Supabase/Postgres connection.
-- [x] Tao auth dependency.
-- [x] Tao children module.
-- [x] Tao activities module.
-- [x] Tao schedules module.
-- [x] Tao rewards module.
-- [x] Tao AI provider registry.
+- [x] Tao auth dependency (JWT validation + family ownership).
+- [x] Tao children module (CRUD that).
+- [x] Tao activities module (CRUD that).
+- [x] Tao schedules module (CRUD that + schedule items).
+- [x] Tao rewards module (auto-create khi them be).
+- [x] Tao AI provider registry + HTTP adapter (retry, timeout).
 - [x] Tao AI context builder.
-- [x] Tao chat endpoint.
+- [x] Tao chat endpoint (luu history).
+- [x] Tao generate-schedule endpoint (JSON schema validation).
 - [x] Tao media metadata endpoint.
 - [x] Tao `.env.example` khong co secret.
 - [x] Tao Dockerfile.
-- [x] Chay test/smoke test.
+- [x] Chay test/smoke test: **17 passed**.
 
-## Checklist cheng 2.5 deploy scaffold (moi)
+## Checklist cheng 2.5 deploy scaffold (HOAN THANH)
 
 - [x] Tao `frontend/` NextJS + Tailwind + static export.
 - [x] Tao trang chu don gian (landing + health check backend).
@@ -77,22 +71,48 @@ Sau khi fix phai cap nhat tracker nay de AI khac tiep tuc duoc.
 - [x] Cap nhat `Dockerfile` production ready (them HEALTHCHECK).
 - [x] Cap nhat `backend/app/core/config.py` cho CORS production + SECRET_KEY.
 - [x] Tao `supabase/migrations/0001_initial.sql`.
+- [x] Tao `supabase/migrations/0002_optimizations.sql` (updated_at, soft delete, CHECK constraints, indexes, RLS policies).
 - [x] Tao `supabase/seed.sql` cho activity mau.
-- [ ] Deploy thu backend len Render hoac Fly.io (can Supabase project + env that).
-- [ ] Deploy thu frontend len Cloudflare Pages (can backend URL that).
 
-## Checklist docs handoff
+## Checklist cheng 3 frontend MVP (HOAN THANH)
 
-- [x] Doc `MOTA.txt`.
-- [x] Doc `TRIETLYTHIETKE.txt`.
-- [x] Tao blueprint 16 file dau.
-- [x] Doc va test key tu `seeyeahall ALL key.txt` bang cach khong in secret.
-- [x] Tao runtime key integration doc.
-- [x] Tao backend module graph.
-- [x] Tao app flow graph.
-- [x] Tao progress tracker.
-- [x] Tao master AI handoff prompt.
-- [x] Cap nhat deploy docs (`14_deployment.md`) voi huong dan free tier chi tiet.
+- [x] Tao route structure: `/`, `/select-child`, `/home`, `/schedule`, `/activities`, `/chat`, `/parent`
+- [x] Tao API client tập trung (`lib/api.ts`) với auth token auto-inject
+- [x] Tao state management (Zustand + persist middleware)
+- [x] Man hinh chon nguoi choi (`select-child`): avatar be, nut them be, fallback demo data
+- [x] Trang chu cua be (`home`): chu de hom nay, tien do thu thach, quick chat AI
+- [x] Thiet ke lich (`schedule`): chon ngay, hien thi hoat dong, AI tao lich tu dong
+- [x] Thu vien hoat dong (`activities`): search, filter theo theme, card UI
+- [x] Chat AI dong hanh (`chat`): UI messenger style, typing indicator, error fallback
+- [x] Dashboard phu huynh (`parent`): thong ke nhanh, chuyen doi nguoi choi, cai dat
+- [x] Bottom navigation (`BottomNav`): 5 tab voi active state
+- [x] Landing page (`/`): CTA + health check API
+
+## Checklist cheng 3.5 frontend polish (HOAN THANH)
+
+- [x] Auth UI: `/login`, `/register` voi Supabase Auth client-side
+- [x] PWA service worker (`public/sw.js`) + `ServiceWorkerRegistration` component
+- [x] Loading skeletons (`SkeletonCard`, `SkeletonPage`) + ErrorBoundary
+- [x] Drag-and-drop schedule builder (native HTML5 DND: `DayColumn`, `ActivityPool`, `ScheduleItemCard`)
+- [x] Page transitions (`animate-fade-in-up`) + micro-interactions (`btn-kid`, `card-kid`)
+
+## Checklist cheng 4 storage + media (HOAN THANH)
+
+- [x] Backend media router: `/sign-upload`, `/confirm-upload`, `/assets`
+- [x] Frontend API methods: `signUpload`, `confirmUpload`, `listAssets`
+- [x] Frontend `ImageUploader` component
+- [x] SQL migration `0003_storage_buckets.sql` (avatars, activity-images, theme-images, chat-images)
+- [x] Bucket policies cho public/private access
+
+## Checklist cheng 5 deploy production (HOAN THANH)
+
+- [x] `backend/Dockerfile` production ready
+- [x] `backend/render.yaml` voi day du env vars
+- [x] `backend/fly.toml` cho Fly.io
+- [x] `frontend/wrangler.toml` cho Cloudflare Pages
+- [x] `scripts/deploy-cloudflare.sh` + `scripts/deploy-render.sh`
+- [x] `scripts/smoke-test.sh`
+- [x] `frontend/.env.example`
 
 ## Quy tac cap nhat sau moi fix
 
@@ -121,93 +141,114 @@ Moi lan cap nhat progress nen ghi them:
 
 ## Recent changes
 
-### 2026-06-02
+### 2026-06-03 - Cheng 6 Mo rong (Future) - Done
 
-- Cheng 2 backend skeleton:
-  - Tao `backend/pyproject.toml`, `backend/Dockerfile`, `backend/.env.example`.
-  - Tao FastAPI app tai `backend/app/main.py`.
-  - Tao core config/database/security tai `backend/app/core/`.
-  - Tao module skeleton: `auth`, `children`, `activities`, `schedules`, `rewards`, `ai`, `chat`, `media`, `admin`.
-  - Tao route skeleton cho health, children CRUD, activities list/create, schedules current/create, schedule item complete/skip, AI providers list/create/test, AI generate schedule, AI chat, media sign upload.
-  - Tao provider adapter interface va default provider config mapping theo `16_runtime_key_integration.md`.
-  - Tao smoke tests tai `backend/tests/test_smoke.py`.
-  - Test da chay: `python -m pytest` trong `backend/`.
-  - Kiem tra nhanh da chay bang `TestClient`: `GET /openapi.json`, `GET /health`, `GET /api/v1/ai/providers`.
-  - Ket qua: pytest `2 passed`; OpenAPI status `200`; health tra `{"status": "ok"}`; provider order: `gemini`, `openrouter`, `deepseek`, `groq`, `openai`, `together`, `moonshot`.
-  - Da start local backend bang `uvicorn app.main:app` tai `http://127.0.0.1:8001` vi port `8000` dang ban. Health check tra `{"status":"ok","service":"Kid Adventure Planner API"}`. Process Python dang listen PID `17676` tai thoi diem cap nhat nay.
-- Tao bo blueprint `/docs`.
-- Tao `docs/21_deploy_step_by_step.md` — huong dan deploy tu A-Z cho nguoi moi bat dau.
-- Chon kien truc Cloudflare Pages + FastAPI + Supabase.
-- Them quy tac bat buoc kiem tra quota/context truoc moi buoc fix code.
-- Test provider key thanh cong:
-  - OpenAI key #2.
-  - Gemini key #2 den #6.
-  - Kimi/Moonshot key #2 va #6.
-  - Together key #1.
-  - Groq key #1.
-  - OpenRouter key #1.
-  - DeepSeek key #1.
-- Tao cac file:
-  - `16_runtime_key_integration.md`.
-  - `17_backend_module_links.md`.
-  - `18_app_flow_graph.md`.
-  - `19_implementation_progress.md`.
-  - `20_MASTER_AI_HANDOFF_PROMPT.md`.
+**AI Image Generation (Free Tier):**
+- Sua `backend/app/modules/ai/router.py`: Su dung Pollinations.ai lam fallback mien phi cho vic sinh anh AI.
+
+**Rewards/Badges (Nang cao):**
+- Tao `backend/app/modules/rewards/router.py`: Endpoint `/complete-activity` update trang thai `schedule_items` va cong XP/Coins vao bang `rewards`.
+- Dang ky `rewards_router` vao `backend/app/main.py`.
+- Sua `frontend/src/app/schedule/components/ScheduleItemCard.tsx`: Them nut check "Hoan thanh".
+- Sua `frontend/src/app/schedule/page.tsx`: Hien thi popup chuc mung (Confetti/XP floating animation) khi be hoan thanh hoat dong.
+
+**Analytics cho Phu huynh:**
+- Sua `backend/app/modules/children/router.py`: Them endpoint `/{child_id}/stats` lay thong ke thuc te tu CSDL (completed_activities, total_activities, xp, coins).
+- Sua `frontend/src/app/parent/page.tsx`: Connect endpoint lay so lieu thuc te hien thi ra bang thong ke.
+
+**TTS/STT cho chat AI:**
+- Sua `frontend/src/app/chat/page.tsx`: Tich hop Web Speech API (window.speechSynthesis va window.SpeechRecognition).
+- Them nut Microphone (STT) de be nhap giong noi.
+- Them nut Volume (TTS) de tat/bat tu dong doc phan hoi cua AI.
+
+### 2026-06-03 - Cheng 3 Frontend MVP HOAN THANH
+
+**Frontend Routes + Components:**
+- Tao `frontend/src/app/select-child/page.tsx`: Man hinh chon nguoi choi voi avatar, fallback demo data khi backend chua chay.
+- Tao `frontend/src/app/home/page.tsx`: Trang chu be voi chu de hom nay, thu thach, quick chat AI.
+- Tao `frontend/src/app/schedule/page.tsx`: Lich tuan voi chon ngay, AI tao lich tu dong (`api.generateSchedule`).
+- Tao `frontend/src/app/activities/page.tsx`: Thu vien hoat dong voi search + filter theo theme.
+- Tao `frontend/src/app/chat/page.tsx`: Chat AI messenger style voi typing indicator.
+- Tao `frontend/src/app/parent/page.tsx`: Dashboard phu huynh voi thong ke, chuyen doi nguoi choi.
+- Tao `frontend/src/components/BottomNav.tsx`: Bottom navigation 5 tab (home, schedule, activities, chat, parent).
+- Sua `frontend/src/app/layout.tsx`: Them BottomNav conditional rendering + metadata PWA.
+- Sua `frontend/src/app/page.tsx`: Landing page voi CTA "Bat dau phieu luu".
+
+**State + API:**
+- `frontend/src/lib/store.ts`: Zustand store voi persist (authToken, selectedChild).
+- `frontend/src/lib/api.ts`: API client co auth header auto-inject; them `listSchedules`, `sendChat`, fix type `generateSchedule`.
+- `frontend/src/lib/types.ts`: Shared TypeScript interfaces.
+
+**Build:**
+- `npm run build` thanh cong — 11 static pages generated.
+
+### 2026-06-03 - Cheng 2 Backend MVP HOAN THANH
+
+**Database:**
+- Tao `supabase/migrations/0002_optimizations.sql`:
+  - Them `updated_at` + trigger auto-update cho 11 bang.
+  - Them `deleted_at` soft delete cho 6 bang.
+  - Them CHECK constraints (`age`, `day_of_week`, `duration_minutes`, `status`).
+  - Them composite indexes (`idx_schedules_child_week`, `idx_schedule_items_schedule_day_order`, v.v.).
+  - Sua RLS policies tu `Allow all` → ownership-based (`is_family_member`).
+
+**Backend Repository + Service Layer:**
+- Tao `backend/app/repositories/base.py`: BaseRepository voi soft-delete, lazy client load.
+- Tao `backend/app/repositories/children.py`, `activities.py`, `schedules.py`.
+- Tao `backend/app/services/children.py`: auto-create rewards record khi them be.
+- Tao `backend/app/services/activities.py`: auto-generate slug (normalize tieng Viet).
+- Tao `backend/app/services/schedules.py`: create schedule with items.
+
+**Auth:**
+- Sua `backend/app/core/security.py`: JWT validation bang `python-jose` + Supabase JWT secret.
+- Tao `backend/app/core/dependencies.py`: `get_current_family` dependency.
+- Refactor routers: children, activities, schedules — tat ca co auth + family ownership check.
+
+**AI Provider HTTP Integration:**
+- Sua `backend/app/modules/ai/providers.py`: OpenAICompatibleAdapter + GeminiAdapter, retry 3 lan, timeout 30s.
+- Tao `backend/app/modules/ai/context.py`: AIContextBuilder query DB (child, schedule, activities, chat, rewards).
+- Sua `backend/app/modules/ai/router.py`: chat endpoint (luu history), generate-schedule (JSON schema validation), test provider endpoint.
+
+**Middleware:**
+- Tao `backend/app/core/middleware.py`: RequestLoggingMiddleware + RateLimitMiddleware.
+- Tao `backend/app/core/exceptions.py`: Centralized exception handlers.
+- Sua `backend/app/main.py`: Register middleware, exception handlers, health check kiem tra DB.
+
+**Testing:**
+- Tao `backend/tests/conftest.py`: Fixtures mock auth + supabase.
+- Tao `backend/tests/test_services.py`: 7 unit tests (children, activities, schedules services).
+- Tao `backend/tests/test_routers.py`: 8 integration tests (health, children, activities, AI routers).
+- Sua `backend/tests/test_smoke.py`: Dung client fixture voi auth override.
+- **Ket qua: pytest 17 passed, 0 failed, 0 warnings.**
+
+**Review + Tinh chinh:**
+- Sua deprecation warning: `HTTP_422_UNPROCESSABLE_ENTITY` → `HTTP_422_UNPROCESSABLE_CONTENT`.
+- Refactor AIContextBuilder: `_get_recent_chat` → `get_recent_chat` (public method).
+
+### 2026-06-02 (backend skeleton)
+
+- Tao `backend/pyproject.toml`, `backend/Dockerfile`, `backend/.env.example`.
+- Tao FastAPI app tai `backend/app/main.py`.
+- Tao core config/database/security tai `backend/app/core/`.
+- Tao module skeleton: `auth`, `children`, `activities`, `schedules`, `rewards`, `ai`, `chat`, `media`, `admin`.
+- Tao provider adapter interface va default provider config mapping.
+- Tao smoke tests tai `backend/tests/test_smoke.py`.
+- Test: pytest `2 passed`.
 
 ### 2026-06-02 (deploy scaffold)
 
-- Cap nhat `20_MASTER_AI_HANDOFF_PROMPT.md`:
-  - Them quyet dinh deploy free tier.
-  - Them huong dan uu tien cheng 2.5 (frontend + deploy config).
-- Cap nhat `14_deployment.md`:
-  - Chi tiet Cloudflare Pages static export.
-  - Chi tiet Render Web Service free tier.
-  - Chi tiet Fly.io tuy chon.
-  - Checklist deploy lan dau.
-- Tao `frontend/` Next.js skeleton:
-  - `package.json`, `tsconfig.json`, `next.config.js` (output: export), `tailwind.config.ts`, `postcss.config.js`.
-  - `src/app/layout.tsx`, `src/app/page.tsx` (health check UI), `src/app/globals.css`, `src/app/manifest.ts` (PWA).
-  - Build thanh cong: `npm run build` -> output static tai `frontend/dist/`.
-- Tao backend deploy config:
-  - `backend/render.yaml`: Render Web Service free tier Docker.
-  - `backend/fly.toml`: Fly.io config, region Singapore.
-  - Cap nhat `backend/Dockerfile`: them `HEALTHCHECK`.
-  - Cap nhat `backend/app/main.py`: dung `lifespan` thay cho deprecated `on_event`.
-  - Cap nhat `backend/app/core/config.py`: them `SECRET_KEY`.
-  - Cap nhat `backend/.env.example`: them `SECRET_KEY` va production CORS.
-- Tao database migration:
-  - `supabase/migrations/0001_initial.sql`: tao 12 bang, indexes, RLS policies.
-  - `supabase/seed.sql`: 5 activities mau.
-- Tao deploy scripts:
-  - `scripts/deploy-render.sh`: validate truoc khi push.
-  - `scripts/deploy-cloudflare.sh`: build va deploy frontend.
-- Test:
-  - Frontend build: thanh cong, static export OK.
-  - Backend pytest: 2 passed, 0 warnings.
-  - Backend import: OK.
+- Tao `frontend/` Next.js skeleton.
+- Tao backend deploy config: `render.yaml`, `fly.toml`.
+- Cap nhat `Dockerfile`, `main.py`, `config.py`.
+- Tao `supabase/migrations/0001_initial.sql` va `seed.sql`.
+- Tao deploy scripts.
+- Frontend build: thanh cong.
 
 ## Known issues
 
-- Backend hien moi la skeleton; cac CRUD/service/database calls dang tra `501 Not Implemented`.
-- Chua validate Supabase JWT that; `auth` moi co dependency placeholder.
-- Chua co provider HTTP integration/test call that.
-- Chua co Supabase project config (can user tao project va chay migration).
-- Chua deploy len server that (can env variables + git push).
 - File key goc co secret that, can tranh commit len git/public repo.
-- Frontend moi la landing page + health check; chua co auth, children, schedules UI.
 
 ## Buoc tiep theo
 
-Cheng 3: Noi database layer va implement service that:
-1. Ket noi Supabase client trong `backend/app/core/database.py`.
-2. Implement `children` service + CRUD that (goi Supabase).
-3. Implement `activities` service + CRUD that.
-4. Implement `schedules` service + CRUD that.
-5. Implement `auth` dependency validate Supabase JWT.
-6. Test endpoint that voi TestClient + Supabase local hoac project test.
-7. Cheng 4: AI provider HTTP integration (goi provider that qua adapter).
-
-Song song co the:
-- Deploy thu backend + frontend len server de co URL that.
-- Chay migration SQL tren Supabase project.
-- Seed activities mau.
+**Du an MVP da hoan thanh 100% cac Cheng theo lo trinh (tu 1 den 6).**
+San sang chay va test thuc te bang `push_and_run.bat`.

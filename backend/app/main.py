@@ -4,12 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.exceptions import setup_exception_handlers
+from app.core.middleware import RateLimitMiddleware, RequestLoggingMiddleware
 from app.modules.activities.router import router as activities_router
 from app.modules.ai.router import router as ai_router
 from app.modules.chat.router import router as chat_router
 from app.modules.children.router import router as children_router
 from app.modules.media.router import router as media_router
+from app.modules.rewards.router import router as rewards_router
 from app.modules.schedules.router import router as schedules_router
+from app.modules.admin.router import router as admin_router
 
 settings = get_settings()
 
@@ -27,6 +31,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+# Exception handlers
+setup_exception_handlers(app)
+
+# Middleware (order matters: outer first)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -37,8 +47,24 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": settings.app_name, "env": settings.app_env}
+def health() -> dict[str, object]:
+    from app.core.database import get_supabase_client, DatabaseNotConfiguredError
+    db_status = "ok"
+    try:
+        client = get_supabase_client()
+        # Lightweight query to verify connection
+        client.table("children").select("id", count="exact").limit(1).execute()
+    except DatabaseNotConfiguredError:
+        db_status = "not_configured"
+    except Exception:
+        db_status = "error"
+
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "env": settings.app_env,
+        "database": db_status,
+    }
 
 
 app.include_router(children_router, prefix=settings.api_prefix)
@@ -47,4 +73,5 @@ app.include_router(schedules_router, prefix=settings.api_prefix)
 app.include_router(ai_router, prefix=settings.api_prefix)
 app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(media_router, prefix=settings.api_prefix)
-
+app.include_router(rewards_router, prefix=settings.api_prefix)
+app.include_router(admin_router, prefix=settings.api_prefix)

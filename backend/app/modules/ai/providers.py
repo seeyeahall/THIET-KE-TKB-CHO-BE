@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 
 @dataclass(frozen=True)
 class ProviderConfig:
@@ -14,8 +16,10 @@ class ProviderConfig:
 
 
 class AIProviderAdapter(ABC):
-    def __init__(self, config: ProviderConfig) -> None:
+    def __init__(self, config: ProviderConfig, api_key: str | None = None) -> None:
         self.config = config
+        self.api_key = api_key
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
 
     @abstractmethod
     async def chat(self, messages: list[dict[str, str]], options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -34,22 +38,151 @@ class AIProviderAdapter(ABC):
     async def test_connection(self) -> dict[str, Any]:
         raise NotImplementedError
 
+    def _default_headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
 
 class OpenAICompatibleAdapter(AIProviderAdapter):
     async def chat(self, messages: list[dict[str, str]], options: dict[str, Any] | None = None) -> dict[str, Any]:
-        raise NotImplementedError("Provider HTTP integration will be implemented after config storage")
+        opts = options or {}
+        endpoint = self.config.endpoint or "https://api.openai.com/v1/chat/completions"
+        model = self.config.model or opts.get("model", "gpt-4o-mini")
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": opts.get("temperature", 0.7),
+            "max_tokens": opts.get("max_tokens", 2048),
+        }
+        if opts.get("response_format"):
+            payload["response_format"] = opts["response_format"]
+
+        for attempt in range(3):
+            try:
+                resp = await self.client.post(endpoint, json=payload, headers=self._default_headers())
+                resp.raise_for_status()
+                data = resp.json()
+                return {
+                    "content": data["choices"][0]["message"]["content"],
+                    "model": data.get("model"),
+                    "usage": data.get("usage"),
+                    "raw": data,
+                }
+            except httpx.HTTPStatusError as exc:
+                if attempt == 2:
+                    return {"error": f"HTTP {exc.response.status_code}: {exc.response.text}"}
+            except Exception as exc:
+                if attempt == 2:
+                    return {"error": str(exc)}
+        return {"error": "Max retries exceeded"}
+
+    async def generate_image(self, prompt: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        # Only native OpenAI supports DALL-E image generation reliably
+        if self.config.provider_type != "openai":
+            return {"fallback": True, "provider": self.config.name}
+
+        endpoint = "https://api.openai.com/v1/images/generations"
+        payload = {
+            "model": "dall-e-3",
+            "prompt": prompt,
+            "n": 1,
+            "size": "1024x1024",
+        }
+        if options:
+            payload.update(options)
+
+        for attempt in range(3):
+            try:
+                resp = await self.client.post(endpoint, json=payload, headers=self._default_headers())
+                resp.raise_for_status()
+                data = resp.json()
+                image_url = data["data"][0]["url"] if data.get("data") else None
+                if image_url:
+                    return {"image_url": image_url, "provider": self.config.name, "raw": data}
+                return {"error": "No image URL in response", "raw": data}
+            except httpx.HTTPStatusError as exc:
+                if attempt == 2:
+                    return {"error": f"HTTP {exc.response.status_code}: {exc.response.text}"}
+            except Exception as exc:
+                if attempt == 2:
+                    return {"error": str(exc)}
+        return {"error": "Max retries exceeded"}
 
     async def test_connection(self) -> dict[str, Any]:
-        raise NotImplementedError("Provider test endpoint will be implemented after config storage")
+        endpoint = self.config.endpoint or "https://api.openai.com/v1/models"
+        try:
+            resp = await self.client.get(endpoint, headers=self._default_headers())
+            resp.raise_for_status()
+            return {"status": "ok", "provider": self.config.name}
+        except httpx.HTTPStatusError as exc:
+            return {"status": "error", "detail": f"HTTP {exc.response.status_code}"}
+        except Exception as exc:
+            return {"status": "error", "detail": str(exc)}
+
+
+class GeminiAdapter(AIProviderAdapter):
+    async def chat(self, messages: list[dict[str, str]], options: dict[str, Any] | None = None) -> dict[str, Any]:
+        opts = options or {}
+        model = self.config.model or "gemini-1.5-flash"
+        endpoint = self.config.endpoint or f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        # Convert OpenAI-style messages to Gemini contents
+        contents = []
+        for m in messages:
+            role = m.get("role", "user")
+            gemini_role = "user" if role != "assistant" else "model"
+            contents.append({"role": gemini_role, "parts": [{"text": m.get("content", "")}]})
+        payload = {"contents": contents}
+        if opts.get("response_format"):
+            payload["generationConfig"] = {"responseMimeType": "application/json"}
+
+        headers = self._default_headers()
+        if self.api_key:
+            endpoint = f"{endpoint}?key={self.api_key}"
+            headers.pop("Authorization", None)
+
+        for attempt in range(3):
+            try:
+                resp = await self.client.post(endpoint, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                text = candidates[0]["content"]["parts"][0]["text"] if candidates else ""
+                return {"content": text, "model": model, "usage": data.get("usageMetadata"), "raw": data}
+            except httpx.HTTPStatusError as exc:
+                if attempt == 2:
+                    return {"error": f"HTTP {exc.response.status_code}: {exc.response.text}"}
+            except Exception as exc:
+                if attempt == 2:
+                    return {"error": str(exc)}
+        return {"error": "Max retries exceeded"}
+
+    async def test_connection(self) -> dict[str, Any]:
+        model = self.config.model or "gemini-1.5-flash"
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models?key={self.api_key or ''}"
+        try:
+            resp = await self.client.get(endpoint)
+            resp.raise_for_status()
+            return {"status": "ok", "provider": self.config.name}
+        except httpx.HTTPStatusError as exc:
+            return {"status": "error", "detail": f"HTTP {exc.response.status_code}"}
+        except Exception as exc:
+            return {"status": "error", "detail": str(exc)}
 
 
 DEFAULT_PROVIDER_CONFIGS: tuple[ProviderConfig, ...] = (
-    ProviderConfig(name="Gemini", provider_type="gemini", api_key_env="GEMINI_API_KEY"),
-    ProviderConfig(name="OpenRouter", provider_type="openrouter", api_key_env="OPENROUTER_API_KEY"),
-    ProviderConfig(name="DeepSeek", provider_type="deepseek", api_key_env="DEEPSEEK_API_KEY"),
-    ProviderConfig(name="Groq", provider_type="groq", api_key_env="GROQ_API_KEY"),
-    ProviderConfig(name="OpenAI", provider_type="openai", api_key_env="OPENAI_API_KEY"),
-    ProviderConfig(name="Together AI", provider_type="together", api_key_env="TOGETHER_API_KEY"),
-    ProviderConfig(name="Kimi/Moonshot", provider_type="moonshot", api_key_env="MOONSHOT_API_KEY"),
+    ProviderConfig(name="Gemini", provider_type="gemini", model="gemini-1.5-flash", api_key_env="GEMINI_API_KEY"),
+    ProviderConfig(name="OpenRouter", provider_type="openrouter", endpoint="https://openrouter.ai/api/v1/chat/completions", api_key_env="OPENROUTER_API_KEY"),
+    ProviderConfig(name="DeepSeek", provider_type="deepseek", endpoint="https://api.deepseek.com/v1/chat/completions", api_key_env="DEEPSEEK_API_KEY"),
+    ProviderConfig(name="Groq", provider_type="groq", endpoint="https://api.groq.com/openai/v1/chat/completions", api_key_env="GROQ_API_KEY"),
+    ProviderConfig(name="OpenAI", provider_type="openai", endpoint="https://api.openai.com/v1/chat/completions", api_key_env="OPENAI_API_KEY"),
+    ProviderConfig(name="Together AI", provider_type="together", endpoint="https://api.together.xyz/v1/chat/completions", api_key_env="TOGETHER_API_KEY"),
+    ProviderConfig(name="Kimi/Moonshot", provider_type="moonshot", endpoint="https://api.moonshot.ai/v1/chat/completions", api_key_env="MOONSHOT_API_KEY"),
 )
 
+
+def build_adapter(config: ProviderConfig, api_key: str | None = None) -> AIProviderAdapter:
+    if config.provider_type == "gemini":
+        return GeminiAdapter(config, api_key)
+    return OpenAICompatibleAdapter(config, api_key)

@@ -92,7 +92,36 @@ Muc dich: Day la noi luu du lieu be, lich, hoat dong, tai khoan.
   - **anon public**: `eyJ...` (dai, bat dau bang `eyJ`)
   - **service_role secret**: `eyJ...` (co nhan cua service_role — **rat quan trong, dung lo cho ai**)
 
+https://ypfyanoqliynjiywuukv.supabase.co
+sb_publishable_XjKdpkF-FPmLc_8aU3wTig_fR3epLYs
+supabase login
+supabase init
+supabase link --project-ref ypfyanoqliynjiywuukv
+
+anon public
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+service_role secret
+YOUR_SERVICE_ROLE_SECRET_KEY
+
+Publishable key
+Name	API Key
+default YOUR_PUBLISHABLE_KEY
+
+Secret keys
+Name	API Key
+default YOUR_SECRET_KEY
 ---
+
+Project name
+ypfyanoqliynjiywuukv
+Project ID
+ypfyanoqliynjiywuukv
+Project region
+ap-northeast-1
+
+Northeast Asia (Tokyo)
+
+
 
 ## Buoc 3: Deploy backend len Render (mien phi)
 

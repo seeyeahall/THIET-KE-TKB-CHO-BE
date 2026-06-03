@@ -1,7 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.core.security import CurrentUser, get_current_user
+from app.services.activities import ActivitiesService
+
 router = APIRouter(prefix="/activities", tags=["activities"])
+
+
+def _activities_service() -> ActivitiesService:
+    return ActivitiesService()
 
 
 class ActivityCreate(BaseModel):
@@ -20,11 +29,25 @@ class ActivityCreate(BaseModel):
 def list_activities(
     age: int | None = Query(default=None, ge=0, le=18),
     theme: str | None = None,
-) -> list[dict[str, str]]:
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="List activities skeleton")
+    user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, object]]:
+    return _activities_service().list_activities(theme=theme, min_age=age, max_age=age)
 
 
 @router.post("")
-def create_activity(payload: ActivityCreate) -> dict[str, object]:
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Create activity skeleton")
+def create_activity(
+    payload: ActivityCreate,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, object]:
+    return _activities_service().create_activity(payload.model_dump(exclude_unset=True))
 
+
+@router.get("/{activity_id}")
+def get_activity(
+    activity_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, object]:
+    activity = _activities_service().get_activity(activity_id)
+    if not activity:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found")
+    return activity

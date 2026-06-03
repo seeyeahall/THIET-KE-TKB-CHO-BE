@@ -28,7 +28,7 @@ Khong duoc thiet ke app nhu ung dung quan ly lich/kpi kho cung. Frontend phai vu
 
 Python backend khong chay truc tiep tren Cloudflare Pages. Cloudflare Pages chi host frontend.
 
-### Quyet dinh deploy free tier (moi)
+### Quyet dinh deploy free tier
 
 De push va chay duoc ngay tren tai khoan free:
 
@@ -51,30 +51,52 @@ De push va chay duoc ngay tren tai khoan free:
    
 5. **Env variables**: Khong bao gio commit secret. Dung `.env.example` lam template.
 
+## Trang thai hien tai (TOM TAT)
+
+### Da hoan thanh
+
+| Thanh phan | Trang thai | Chi tiet |
+|---|---|---|
+| Blueprint docs | Done | 22 file markdown trong `/docs` |
+| Backend FastAPI MVP | Done | Repository + Service layer, Auth JWT, AI Provider HTTP integration, AI Context Builder, Middleware, 17/17 tests pass |
+| Database schema + migrations | Done | `0001_initial.sql` + `0002_optimizations.sql` (updated_at, soft delete, CHECK constraints, composite indexes, RLS policies) |
+| Frontend scaffold | Done | NextJS + Tailwind + static export, landing page + health check |
+| Frontend PWA MVP | Done | 7 screens + BottomNav + Zustand store + API client. Build 13 pages. |
+| Auth UI | Done | `/login`, `/register` with Supabase Auth |
+| PWA offline | Done | Service worker + cache strategies |
+| Skeletons + ErrorBoundary | Done | Loading states + error recovery |
+| DND Schedule | Done | Native HTML5 drag-and-drop schedule builder |
+| Animations | Done | Page transitions + micro-interactions |
+| Storage + Media | Done | Supabase Storage buckets, signed upload API, ImageUploader |
+| Deploy config | Done | `render.yaml`, `fly.toml`, `wrangler.toml`, Dockerfile, deploy scripts, smoke test |
+
+### Dang lam
+
+| Thanh phan | Trang thai | Chi tiet |
+|---|---|---|
+| Frontend PWA MVP | Done | Da tao man hinh chon be, trang chu, lich, thu vien, chat AI, dashboard phu huynh, bottom nav. Build thanh cong. |
+
+### Chua bat dau / Dang cho
+
+| Thanh phan | Trang thai | Chi tiet |
+|---|---|---|
+| Mo rong | Future | TTS/STT, AI image, rewards nang cao |
+
 ## Tai lieu can doc theo thu tu
 
 Doc dung thu tu nay de tiet kiem context:
 
 1. `19_implementation_progress.md`
-   - Trang thai hien tai.
-   - Checklist cheng tiep theo.
-   - Known issues.
-   - Quota note.
+   - Trang thai hien tai, checklist, known issues, recent changes.
 
 2. `00_project_overview.md`
    - Muc tieu, nguoi dung, stack, MVP.
 
-3. `17_backend_module_links.md`
-   - Graph lien ket module backend.
-   - Thu muc backend can tao.
-   - Dependency giua modules.
+3. `02_ui_ux_design.md`
+   - Nguyen tac giao dien, man hinh chinh, mau sac, responsive.
 
-4. `18_app_flow_graph.md`
-   - Flow tong the app.
-   - Flow AI tao lich.
-   - Flow chat AI.
-   - Flow upload anh.
-   - Flow test provider.
+4. `03_user_flow.md`
+   - Luong khoi tao, luong be hang ngay, luong tao lich.
 
 5. `09_database_schema.md`
    - Bang Supabase/Postgres MVP.
@@ -85,21 +107,20 @@ Doc dung thu tu nay de tiet kiem context:
    - Module backend.
    - Bao mat.
 
-7. `12_api_provider_system.md`
-   - Provider adapter.
-   - Provider registry.
-   - Logging.
+7. `17_backend_module_links.md`
+   - Graph lien ket module backend.
+   - Thu muc backend can tao.
+   - Dependency giua modules.
 
-8. `16_runtime_key_integration.md`
-   - Ket qua test key.
-   - Env names.
-   - Provider nao da test thanh cong.
-   - Tuyet doi khong copy raw key vao code/docs.
+8. `18_app_flow_graph.md`
+   - Flow tong the app.
+   - Flow AI tao lich.
+   - Flow chat AI.
+   - Flow upload anh.
+   - Flow test provider.
 
 Chi doc cac file khac khi dang lam dung module do:
 
-- UI/UX: `02_ui_ux_design.md`.
-- User flow: `03_user_flow.md`.
 - Child experience: `04_child_experience.md`.
 - AI context: `05_ai_system.md`.
 - Activity library: `06_activity_library.md`.
@@ -109,86 +130,98 @@ Chi doc cac file khac khi dang lam dung module do:
 - Storage: `13_storage_system.md`.
 - Deployment: `14_deployment.md`.
 - Roadmap: `15_mvp_roadmap.md`.
+- Runtime key: `16_runtime_key_integration.md`.
 
-## Trang thai hien tai
+## Huong dan nhanh cho tung cong viec
 
-Da hoan thanh:
+### Neu dang lam Frontend MVP (Cheng 3) — DA XONG
 
-- Doc `MOTA.txt`.
-- Doc `TRIETLYTHIETKE.txt`.
-- Tao bo tai lieu `/docs/00` den `/docs/20`.
-- Test provider key tu `seeyeahall ALL key.txt` bang endpoint nhe, khong in secret.
-- Chot kien truc Cloudflare Pages + FastAPI + Supabase.
-- Chot flow backend, app graph va progress tracker.
-- Scaffold backend FastAPI MVP (health, routes, provider interface).
+**Cac man hinh da tao:**
+1. `/` — Landing page voi CTA + health check API.
+2. `/select-child` — Chon nguoi choi (avatar be, nut them be, nut phu huynh). Fallback demo data.
+3. `/home` — Trang chu cua be (chu de hom nay, tien do thu thach, quick chat AI).
+4. `/schedule` — Lich tuan (thanh chon ngay, danh sach hoat dong, AI tao lich).
+5. `/activities` — Thu vien hoat dong (search, filter theme, card hoat dong).
+6. `/chat` — Chat AI dong hanh (messenger UI, typing indicator, error fallback).
+7. `/parent` — Dashboard phu huynh (thong ke, chuyen doi nguoi choi, cai dat).
+8. `BottomNav` — Navigation 5 tab (home, schedule, activities, chat, parent).
 
-Chua bat dau / Dang tiep tuc:
+**Kien truc frontend:**
+- `output: 'export'` trong `next.config.js` → khong dung API routes, khong dung `next/image` optimized.
+- Moi API call backend qua `fetch` den `NEXT_PUBLIC_API_BASE_URL`.
+- Auth: Dung local dev fallback (chua co Supabase Auth UI).
+- State: Zustand + persist middleware (`authToken`, `selectedChild`).
+- Types: `frontend/src/lib/types.ts` — shared interfaces.
+- API: `frontend/src/lib/api.ts` — centralized client voi auth headers.
 
-- Source code frontend (can scaffold de deploy Cloudflare Pages).
-- Supabase migration SQL.
-- Config deploy production (Render/Fly.io).
-- Frontend-Backend integration.
+**File da tao/sua:**
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/store.ts`
+- `frontend/src/lib/types.ts`
+- `frontend/src/components/BottomNav.tsx`
+- `frontend/src/app/layout.tsx`
+- `frontend/src/app/page.tsx`
+- `frontend/src/app/select-child/page.tsx`
+- `frontend/src/app/home/page.tsx`
+- `frontend/src/app/schedule/page.tsx`
+- `frontend/src/app/activities/page.tsx`
+- `frontend/src/app/chat/page.tsx`
+- `frontend/src/app/parent/page.tsx`
 
-Buoc tiep theo nen lam:
+### Buoc tiep theo (Cheng 3.5)
+1. Them auth UI (login/register Supabase Auth).
+2. PWA service worker + offline support.
+3. Loading skeletons + error boundaries.
+4. Drag-and-drop thiet ke lich.
+5. Animation/transition giua man hinh.
 
-> Cheng 2.5: scaffold frontend + deploy config de co the push len server va chay ngay.
-> Hoac Cheng 3: Supabase migration + noi database layer cho backend.
+### Neu dang lam Backend
 
-## Lenh tong the cho AI tiep theo
+**Kien truc da chot:**
+- `app/repositories/` — BaseRepository + implementations (soft-delete, lazy client).
+- `app/services/` — Business logic (ChildrenService, ActivitiesService, SchedulesService).
+- `app/modules/*/router.py` — FastAPI routers, lazy init service.
+- `app/core/security.py` — JWT validation, `get_current_user`, `get_current_family`.
+- `app/core/middleware.py` — RequestLoggingMiddleware, RateLimitMiddleware.
 
-Truoc khi bat dau bat ky buoc fix code nao, phai thuc hien `Context/Quota Gate`.
+**Chay test:**
+```bash
+cd backend
+python -m pytest -v
+```
 
-### Context/Quota Gate bat buoc
+**Chay local:**
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8001
+```
 
-1. Kiem tra quota/context con lai ma UI/session bao cao.
-2. Uoc luong pham vi buoc sap lam:
-   - Nho: doc 1-3 file, sua 1-2 file, test nhanh.
-   - Vua: doc nhieu module, sua 3-8 file, chay test lien quan.
-   - Lon: tao module moi, sua frontend/backend/database, can doc nhieu docs.
-3. Chi bat dau neu quota/context con lai du cho ca 3 viec:
-   - Doc tai lieu/code can thiet.
-   - Sua code.
-   - Test va cap nhat docs handoff.
-4. Neu khong du, khong duoc bat dau fix nua. Hay:
-   - Ghi lai trang thai vao `19_implementation_progress.md` neu co the.
-   - De xuat chia nho buoc.
-   - Bao user nen mo thread moi hoac tang quota/context.
+### Neu dang lam Database
 
-Nguong thuc dung:
+**Migrations:**
+- `supabase/migrations/0001_initial.sql` — Schema ban dau.
+- `supabase/migrations/0002_optimizations.sql` — Optimizations (updated_at, soft delete, indexes, RLS).
 
-- Con tren 60%: co the lam buoc vua, nhung khong nen lam full app.
-- Con 30-60%: chi lam buoc nho/vua co gioi han ro.
-- Con 15-30%: chi fix nho, doc it file, test nhanh.
-- Con duoi 15%: khong bat dau fix code moi; chi tong ket va cap nhat handoff.
+**Chay migration:**
+1. Vao Supabase SQL Editor.
+2. Chay `0001_initial.sql` truoc.
+3. Chay `0002_optimizations.sql` sau.
+4. Chay `supabase/seed.sql` de them activities mau.
 
-Hay tiep tuc theo thu tu uu tien deploy:
+### Neu dang Deploy
 
-**Neu chua co frontend skeleton:**
-1. Tao thu muc `frontend/` voi NextJS + Tailwind + static export.
-2. Tao trang landing don gian va trang health check goi backend.
-3. Cau hinh `next.config.js` voi `output: 'export'` de deploy Cloudflare Pages.
-4. Tao `package.json`, `tsconfig.json`, `tailwind.config.ts`.
+**Backend (Render):**
+1. Push code len GitHub.
+2. Ket noi Render Web Service voi repo.
+3. Cau hinh env variables trong Render Dashboard.
+4. Deploy.
 
-**Neu chua co deploy config:**
-5. Tao `render.yaml` cho Render Web Service (free tier Docker deploy).
-6. Tao `fly.toml` cho Fly.io (tuy chon, on dinh hon).
-7. Cap nhat `Dockerfile` neu can build args hoac health check.
-8. Cap nhat `backend/app/core/config.py` cho CORS production.
+**Frontend (Cloudflare Pages):**
+1. `npm run build` trong `frontend/`.
+2. Deploy thu muc `frontend/dist/`.
+3. Cau hinh env `NEXT_PUBLIC_API_BASE_URL`.
 
-**Neu chua co database migration:**
-9. Tao `supabase/migrations/0001_initial.sql` theo `09_database_schema.md`.
-10. Tao `supabase/seed.sql` cho activity mau (khong seed secret).
-
-**Sau khi co deploy config:**
-11. Tao script `scripts/deploy-render.sh` hoac huong dan deploy.
-12. Cap nhat `14_deployment.md` voi huong dan tung buoc.
-13. Cap nhat `19_implementation_progress.md`.
-
-Neu quota hoac thoi gian han che, uu tien:
-- Frontend skeleton tối thiểu + static export.
-- `render.yaml` + update Dockerfile.
-- Migration SQL.
-- Cap nhat docs deploy.
+Chi tiet trong `docs/14_deployment.md` va `docs/21_deploy_step_by_step.md`.
 
 ## Quy tac bao mat key
 
@@ -207,7 +240,6 @@ Duoc:
 - Tao `.env.example` voi placeholder.
 - Doc key tu env runtime.
 - Ghi provider va key index da test thanh cong.
-- Tao helper script local neu can, nhung output phai redact secret.
 
 Provider da test thanh cong:
 
@@ -256,15 +288,46 @@ Moi quyet dinh code phai giu dung nguyen tac:
 - Activity library va schedule phai luu database, khong hardcode.
 - Secrets chi nam backend/env.
 
-## Tieu chuan hoan thanh cheng 2
+## Tieu chuan hoan thanh cheng
 
-Cheng 2 duoc xem la xong khi:
+### Cheng 2 (Backend MVP) — DA XONG
 
 - Co `backend/` chay duoc FastAPI.
-- `GET /health` tra ve OK.
-- Co `.env.example`.
-- Co module skeleton dung kien truc.
-- Co provider adapter interface.
-- Co API route skeleton cho MVP.
-- Co test/smoke test toi thieu.
+- Repository + Service layer hoat dong.
+- Auth JWT validation that.
+- AI Provider HTTP integration (retry, timeout).
+- AI Context Builder query DB.
+- Chat + Generate Schedule endpoints.
+- Middleware (logging, rate limiting, exception handlers).
+- pytest 17 passed.
 - `19_implementation_progress.md` duoc cap nhat.
+
+### Cheng 3 (Frontend PWA MVP) — DA XONG
+
+- Route structure day du: `/`, `/select-child`, `/home`, `/schedule`, `/activities`, `/chat`, `/parent`.
+- API client tập trung voi auth token.
+- State management (Zustand + persist).
+- BottomNav 5-tab navigation.
+- Demo data fallback cho tat ca cac man hinh.
+- Frontend build thanh cong voi `output: 'export'` (11 static pages).
+
+### Cheng 3.5 (Frontend Polish)
+
+- Auth UI (login/register Supabase Auth).
+- PWA service worker + offline support.
+- Loading skeletons + error boundaries.
+- Drag-and-drop schedule builder.
+- Page transitions/animations.
+
+### Cheng 4 (Storage + Media)
+
+- Upload avatar/anh hoat dong len Supabase Storage.
+- Cloudflare cache asset public.
+- Media metadata endpoints.
+
+### Cheng 5 (Deploy Production)
+
+- Backend Docker tren Render/Fly.io.
+- Frontend static export tren Cloudflare Pages.
+- Supabase production project.
+- Smoke test end-to-end.

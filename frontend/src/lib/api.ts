@@ -15,9 +15,14 @@ function getToken(): string | null {
 
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
+  let geminiKey = null;
+  if (typeof window !== 'undefined') {
+    geminiKey = localStorage.getItem('GEMINI_API_KEY');
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(geminiKey ? { 'X-Gemini-Api-Key': geminiKey } : {}),
     ...(options?.headers as Record<string, string> || {}),
   };
 

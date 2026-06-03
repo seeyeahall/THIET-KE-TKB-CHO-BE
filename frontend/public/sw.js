@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kid-adventure-v1';
+const CACHE_NAME = 'kid-adventure-v2';
 const STATIC_ASSETS = [
   '/',
   '/select-child',

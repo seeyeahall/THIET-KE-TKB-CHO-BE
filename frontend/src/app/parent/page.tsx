@@ -220,19 +220,37 @@ export default function ParentPage() {
               <h3 className="text-2xl font-black text-gray-800 mb-6">⚙️ Cài đặt chung</h3>
               <div className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <div className="text-sm font-bold text-gray-500">Phiên bản ứng dụng</div>
-                  <div className="text-lg font-black text-gray-800">1.0.0 (Bản ổn định)</div>
+                  <label className="block text-sm font-bold text-gray-500 mb-1">Cấu hình Gemini API Key</label>
+                  <input
+                    type="password"
+                    placeholder="Bỏ trống để dùng key mặc định trên máy chủ..."
+                    value={typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') || '' : ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        localStorage.setItem('GEMINI_API_KEY', e.target.value);
+                      } else {
+                        localStorage.removeItem('GEMINI_API_KEY');
+                      }
+                      // force re-render
+                      setStats({...stats});
+                    }}
+                    className="w-full bg-white border-2 border-gray-200 rounded-lg px-3 py-2 font-mono text-sm focus:border-kid-blue focus:outline-none"
+                  />
+                  <div className="text-xs text-gray-400 mt-2">Dùng để trò chuyện với AI. Key lưu trực tiếp trên thiết bị của bạn.</div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <div className="text-sm font-bold text-gray-500">Tài khoản quản lý</div>
-                  <div className="text-lg font-black text-gray-800 truncate">Admin Phụ Huynh</div>
+                  <div className="text-sm font-bold text-gray-500">Phiên bản ứng dụng</div>
+                  <div className="text-lg font-black text-gray-800">1.0.1 (Bản có cấu hình API)</div>
                 </div>
               </div>
               <button
-                onClick={() => setShowSettings(false)}
+                onClick={() => {
+                  setShowSettings(false);
+                  alert('Đã lưu cấu hình. Hãy tải lại trang (F5) nếu bộ đệm cũ vẫn còn.');
+                }}
                 className="w-full mt-8 bg-kid-blue text-white font-black py-3 rounded-xl hover:bg-blue-600"
               >
-                Đóng
+                Đóng và Lưu
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.core.config import get_settings
 from app.core.dependencies import get_current_family
 from app.core.security import CurrentUser, get_current_user
+from fastapi import Request
 from app.modules.ai.context import AIContextBuilder
 from app.modules.ai.providers import DEFAULT_PROVIDER_CONFIGS, build_adapter
 
@@ -72,6 +73,7 @@ async def test_provider(
 
 @router.post("/chat")
 async def chat(
+    request: Request,
     payload: ChatRequest,
     family: dict = Depends(get_current_family),
     user: CurrentUser = Depends(get_current_user),
@@ -95,8 +97,10 @@ async def chat(
     settings = get_settings()
     config = None
     api_key = None
+    client_key = request.headers.get("x-gemini-api-key")
+    
     for p in DEFAULT_PROVIDER_CONFIGS:
-        key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
         if key:
             config = p
             api_key = key
@@ -131,6 +135,7 @@ async def chat(
 
 @router.post("/generate-schedule")
 async def generate_schedule(
+    request: Request,
     payload: GenerateScheduleRequest,
     family: dict = Depends(get_current_family),
     user: CurrentUser = Depends(get_current_user),
@@ -195,8 +200,10 @@ Yêu cầu:
     settings = get_settings()
     config = None
     api_key = None
+    client_key = request.headers.get("x-gemini-api-key")
+    
     for p in DEFAULT_PROVIDER_CONFIGS:
-        key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
         if key:
             config = p
             api_key = key
@@ -229,6 +236,7 @@ Yêu cầu:
 
 @router.post("/generate-image")
 async def generate_image(
+    request: Request,
     payload: GenerateImageRequest,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, object]:
@@ -254,8 +262,10 @@ async def generate_image(
     settings = get_settings()
     config = None
     api_key = None
+    client_key = request.headers.get("x-gemini-api-key")
+    
     for p in DEFAULT_PROVIDER_CONFIGS:
-        key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
         if key:
             config = p
             api_key = key

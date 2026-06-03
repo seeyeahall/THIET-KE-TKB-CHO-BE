@@ -1,11 +1,11 @@
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from app.core.config import get_settings
 from app.core.database import get_supabase_client
 from app.core.dependencies import get_current_family
 from app.core.security import CurrentUser, get_current_user
-from app.modules.media.tts import generate_tts, transcribe_audio
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -104,36 +104,3 @@ def list_assets(
     if child_id:
         q = q.eq("child_id", str(child_id))
     return q.execute().data or []
-
-
-class TTSRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=2000)
-    voice: str = Field(default="alloy")
-
-
-@router.post("/tts")
-async def text_to_speech(
-    payload: TTSRequest,
-    user: CurrentUser = Depends(get_current_user),
-) -> dict[str, object]:
-    try:
-        audio_bytes = await generate_tts(payload.text, payload.voice)
-        # Save to a temporary public URL or base64 for MVP
-        import base64
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        return {"audio_base64": audio_b64, "format": "mp3", "duration_estimate": len(payload.text) * 0.15}
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TTS error: {exc}") from exc
-
-
-@router.post("/stt")
-async def speech_to_text(
-    audio: UploadFile = File(...),
-    user: CurrentUser = Depends(get_current_user),
-) -> dict[str, object]:
-    try:
-        audio_bytes = await audio.read()
-        transcript = await transcribe_audio(audio_bytes, audio.filename or "audio.webm")
-        return {"transcript": transcript}
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"STT error: {exc}") from exc

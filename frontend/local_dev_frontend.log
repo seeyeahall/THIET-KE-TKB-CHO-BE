@@ -1,0 +1,30 @@
+
+> kid-adventure-planner-frontend@0.1.0 dev
+> next dev --port 3005
+
+  ▲ Next.js 14.2.0
+  - Local:        http://localhost:3005
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1891ms
+ ○ Compiling / ...
+ ✓ Compiled / in 762ms (538 modules)
+ GET / 200 in 936ms
+ ✓ Compiled /manifest.webmanifest in 103ms (302 modules)
+ GET /manifest.webmanifest 200 in 170ms
+ GET / 200 in 245ms
+ ○ Compiling /schedule ...
+ ✓ Compiled /schedule in 703ms (660 modules)
+ GET /icon-192.png 404 in 826ms
+ GET /home 200 in 799ms
+ GET /schedule 200 in 552ms
+ GET /select-child 200 in 800ms
+ ○ Compiling /parent ...
+ ✓ Compiled /parent in 607ms (801 modules)
+ GET /parent 200 in 705ms
+ GET /chat 200 in 705ms
+ GET /activities 200 in 706ms
+ ✓ Compiled /register in 320ms (827 modules)
+ GET /register 200 in 384ms
+ GET /login 200 in 385ms

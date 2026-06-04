@@ -60,6 +60,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       authToken: null,
       setAuthToken: (token) => {
+        // Luu token vao localStorage de api.ts co the doc
         if (token) localStorage.setItem('auth_token', token);
         else localStorage.removeItem('auth_token');
         set({ authToken: token });

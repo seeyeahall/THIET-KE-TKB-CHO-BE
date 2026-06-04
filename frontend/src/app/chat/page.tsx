@@ -158,8 +158,26 @@ export default function ChatPage() {
       setMessages(m => [...m, { role: 'assistant', content: result.reply }]);
       speak(result.reply);
     } catch {
-      const errorMsg = `Xin lỗi ${selectedChild.name}, mình đang nạp chakra lại! 😅 Thử lại sau nhé!`;
-      setMessages(m => [...m, { role: 'assistant', content: errorMsg }]);
+      // Fallback rule-based khi Edge Function loi (offline / chua xac thuc)
+      const name = selectedChild.name;
+      const lower = userMsg.toLowerCase();
+      let reply = '';
+      if (['chào', 'hello', 'hi', 'hey'].some(w => lower.includes(w)))
+        reply = `Dattebayo! 🍥 Chào ${name}! Mình là Naruto đây. Hôm nay bạn muốn khám phá gì nào? ⚡`;
+      else if (['tạm biệt', 'bye', 'bai'].some(w => lower.includes(w)))
+        reply = `Tạm biệt ${name}! Chúc bạn ngày phiêu lưu thật vui! Hẹn gặp lại! ⚡`;
+      else if (['cảm ơn', 'thank', 'cam on'].some(w => lower.includes(w)))
+        reply = `Không có gì đâu ${name}! Ninja luôn sẵn sàng giúp bạn mà. Dattebayo! 🍥`;
+      else if (['buồn', 'sad', 'khóc', 'mệt'].some(w => lower.includes(w)))
+        reply = `${name} ơi, đừng buồn nha! Hít sâu và mỉm cười đi. Mình ở đây với bạn nè! 🍥`;
+      else if (['vui', 'happy', 'thích'].some(w => lower.includes(w)))
+        reply = `Tuyệt vời quá ${name}! Mình cũng vui lây rồi! Kể cho mình nghe thêm nào! ⚡`;
+      else if (['lịch', 'hoạt động'].some(w => lower.includes(w)))
+        reply = `${name} muốn lên kế hoạch hả! Vào trang Lịch Biểu để tạo lịch tuần nhé! 📅 Dattebayo!`;
+      else
+        reply = `${name} nói chuyện thật thú vị! Mình rất thích trò chuyện với bạn. Hỏi thêm đi nào! 🍥`;
+      setMessages(m => [...m, { role: 'assistant', content: reply }]);
+      speak(reply);
     } finally {
       setSending(false);
     }

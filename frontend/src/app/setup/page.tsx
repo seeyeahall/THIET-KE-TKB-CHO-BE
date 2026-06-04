@@ -2,56 +2,42 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { api, getApiBaseUrl } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 export default function SetupPage() {
   const router = useRouter();
-  const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [supabaseKey, setSupabaseKey] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [msg, setMsg] = useState('');
 
   async function handleSetup(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabaseUrl || !supabaseKey) {
-      setMsg('Vui lòng nhập đầy đủ thông tin Supabase');
-      setStatus('error');
-      return;
-    }
 
     setStatus('loading');
     setMsg('');
 
     try {
-      const token = localStorage.getItem('auth_token') || '';
-      const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/v1/admin/setup-system`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          supabase_url: supabaseUrl,
-          supabase_service_role_key: supabaseKey
-        })
-      });
+      // Luu Gemini API Key vao localStorage (dung boi Edge Function via x-gemini-api-key header)
+      if (geminiKey) {
+        localStorage.setItem('GEMINI_API_KEY', geminiKey);
+      }
 
-      const data = await res.json();
-      if (res.ok) {
+      // Kiem tra ket noi Supabase
+      const { api } = await import('@/lib/api');
+      const health = await api.health();
+
+      if (health.status === 'ok') {
         setStatus('success');
-        setMsg('Cài đặt thành công! Hệ thống đang tự động khởi động lại...');
-        setTimeout(() => {
-          router.push('/');
-        }, 3000);
+        setMsg('Cài đặt thành công! Supabase đã được kết nối. Đang chuyển hướng...');
+        setTimeout(() => router.push('/'), 2000);
       } else {
         setStatus('error');
-        setMsg(`Lỗi: ${data.detail || JSON.stringify(data)}`);
+        setMsg('Không kết nối được Supabase. Kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error');
-      setMsg(`Không thể gửi cấu hình: ${err.message}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setMsg(`Lỗi: ${message}`);
     }
   }
 
@@ -60,40 +46,40 @@ export default function SetupPage() {
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border-4 border-kid-orange">
         <div className="text-4xl mb-4 text-center">⚙️</div>
         <h1 className="text-2xl font-black text-kid-blue mb-2 text-center">
-          Cài đặt Hệ thống
+          Cài đặt API Key
         </h1>
         <p className="text-gray-500 text-sm mb-6 text-center">
-          Dành cho Admin: Cấu hình kết nối cơ sở dữ liệu Supabase để ứng dụng hoạt động.
+          Nhập Gemini API Key để bật tính năng AI chat và tạo lịch thông minh.
         </p>
+
+        <div className="mb-4 p-3 bg-blue-50 rounded-xl text-xs text-blue-700 font-bold">
+          💡 Lấy API Key miễn phí tại{' '}
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline">
+            aistudio.google.com
+          </a>
+        </div>
 
         <form onSubmit={handleSetup} className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Supabase URL</label>
-            <input
-              type="text"
-              value={supabaseUrl}
-              onChange={(e) => setSupabaseUrl(e.target.value)}
-              placeholder="https://xxxx.supabase.co"
-              className="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-kid-blue"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Supabase Service Role Key</label>
+            <label className="block text-sm font-bold text-gray-700 mb-1">
+              Gemini API Key (tùy chọn)
+            </label>
             <input
               type="password"
-              value={supabaseKey}
-              onChange={(e) => setSupabaseKey(e.target.value)}
-              placeholder="eyJhbGciOiJIUzI1NiIs..."
-              className="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-kid-blue text-xs font-mono"
-              required
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-kid-blue font-mono text-xs"
             />
-            <p className="text-xs text-gray-400 mt-1">Lấy từ Project Settings &gt; API &gt; service_role (secret)</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Nếu không nhập, app sẽ dùng chế độ Naruto cơ bản (không cần AI).
+            </p>
           </div>
 
           {msg && (
-            <div className={`p-3 rounded-xl text-sm ${status === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+            <div className={`p-3 rounded-xl text-sm font-bold ${
+              status === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
+            }`}>
               {msg}
             </div>
           )}

@@ -30,6 +30,13 @@ export default function RegisterPage() {
       setError(error.message);
     } else if (data.session) {
       setAuthToken(data.session.access_token);
+      // Auto-tao families record cho user moi
+      try {
+        await supabase.from('families').insert({
+          parent_user_id: data.session.user.id,
+          name: familyName || 'My Family',
+        });
+      } catch { /* Ignore if families already exists */ }
       router.push('/select-child');
     } else {
       setError('Vui lòng kiểm tra email để xác nhận tài khoản!');

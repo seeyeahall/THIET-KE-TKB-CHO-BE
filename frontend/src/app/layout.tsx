@@ -6,7 +6,7 @@ import { Baloo_2 } from 'next/font/google';
 import BottomNav from '@/components/BottomNav';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
-import { api } from '@/lib/api';
+import { getSupabaseClient } from '@/lib/supabase';
 import './globals.css';
 
 const baloo = Baloo_2({
@@ -33,66 +33,59 @@ export default function RootLayout({
   useEffect(() => {
     const handleOnline = async () => {
       if (typeof window === 'undefined') return;
-      const keys = Object.keys(localStorage);
-      const offlineKeys = keys.filter(k => k.startsWith('offline_drafts_'));
-      
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const offlineKeys = Object.keys(localStorage).filter(k => k.startsWith('offline_drafts_'));
       for (const key of offlineKeys) {
         const childId = key.replace('offline_drafts_', '');
         try {
           const drafts = JSON.parse(localStorage.getItem(key) || '[]');
           if (drafts.length === 0) continue;
-          
           console.log(`Syncing ${drafts.length} offline drafts for child ${childId}...`);
-          
+
           for (const item of drafts) {
             const weekDate = new Date(item.dateStr);
             const day = weekDate.getDay();
             const mondayOffset = day === 0 ? -6 : 1 - day;
             const monday = new Date(weekDate);
             monday.setDate(weekDate.getDate() + mondayOffset);
-            const weekStart = `${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,'0')}-${String(monday.getDate()).padStart(2,'0')}`;
-            
+            const weekStart = monday.toISOString().substring(0, 10);
+
             let scheduleId: string | null = null;
-            try {
-              const existing = await api.listSchedules(childId);
-              const sched = existing.find(s => s.week_start_date === weekStart);
-              if (sched) scheduleId = sched.id;
-            } catch {}
-            
+            const { data: existingSched } = await supabase
+              .from('schedules').select('id').eq('child_id', childId).eq('week_start_date', weekStart).single();
+            scheduleId = existingSched?.id ?? null;
+
             if (!scheduleId) {
-              const newSched = await api.createSchedule({
-                child_id: childId,
-                title: `Lịch tuần của bé`,
-                week_start_date: weekStart,
-                theme: 'Tự chọn',
-                items: [],
-              });
-              scheduleId = newSched.id;
+              const { data: newSched } = await supabase
+                .from('schedules')
+                .insert({ child_id: childId, title: 'Lịch tuần của bé', week_start_date: weekStart, theme: 'Tự chọn' })
+                .select('id').single();
+              scheduleId = newSched?.id ?? null;
             }
-            
+            if (!scheduleId) continue;
+
             const dow = (new Date(item.dateStr).getDay() + 6) % 7;
-            
             let activityId = item.activity_id;
             if (!activityId) {
-              const act = await api.createActivity({
-                title: item.activity_title,
-                theme: item.activity_theme,
-                duration_minutes: item.duration_minutes,
-              });
-              activityId = act.id;
+              const slug = (item.activity_title ?? 'activity').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 50) + '-' + Date.now().toString(36);
+              const { data: act } = await supabase
+                .from('activities')
+                .insert({ title: item.activity_title, theme: item.activity_theme, duration_minutes: item.duration_minutes, slug, status: 'published', created_by: 'user' })
+                .select('id').single();
+              activityId = act?.id;
             }
-            
-            await api.addScheduleItem(scheduleId!, {
-              activity_id: activityId,
-              day_of_week: dow,
-              start_time: item.start_time,
-              duration_minutes: item.duration_minutes,
-              sort_order: 0,
+            if (!activityId) continue;
+
+            await supabase.from('schedule_items').insert({
+              activity_id: activityId, schedule_id: scheduleId, child_id: childId,
+              day_of_week: dow, start_time: item.start_time, duration_minutes: item.duration_minutes, sort_order: 0,
             });
           }
-          
           localStorage.removeItem(key);
-          console.log(`Successfully synced offline drafts for child ${childId}`);
+          console.log(`Synced offline drafts for child ${childId}`);
         } catch (err) {
           console.error(`Failed to sync offline drafts for child ${childId}:`, err);
         }
@@ -100,13 +93,8 @@ export default function RootLayout({
     };
 
     window.addEventListener('online', handleOnline);
-    if (navigator.onLine) {
-      handleOnline();
-    }
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
+    if (navigator.onLine) handleOnline();
+    return () => window.removeEventListener('online', handleOnline);
   }, []);
 
   return (

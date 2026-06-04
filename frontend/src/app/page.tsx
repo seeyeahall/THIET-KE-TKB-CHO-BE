@@ -2,40 +2,27 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-
-import { api, getApiBaseUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 
 export default function LandingPage() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'not_configured' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [msg, setMsg] = useState('');
-  const [apiUrl, setApiUrl] = useState('');
 
-  // Lấy URL khởi tạo
-  if (typeof window !== 'undefined' && !apiUrl && status === 'idle') {
-    setApiUrl(getApiBaseUrl());
-  }
-
-  async function checkHealth() {
+  async function checkConnection() {
     setStatus('loading');
     setMsg('');
-    if (typeof window !== 'undefined' && apiUrl) {
-      localStorage.setItem('BACKEND_API_URL', apiUrl);
-    }
     try {
       const data = await api.health();
-      if (data.database === 'not_configured') {
-        setStatus('not_configured');
-        setMsg('Cơ sở dữ liệu chưa được cài đặt. Vui lòng chạy Setup.');
-      } else if (data.status === 'ok') {
+      if (data.database === 'ok') {
         setStatus('ok');
         setMsg('Kết nối Backend & Database thành công!');
       } else {
         setStatus('error');
-        setMsg(`Trạng thái không xác định: ${JSON.stringify(data)}`);
+        setMsg('Database chưa được cấu hình. Hãy kiểm tra Supabase.');
       }
-    } catch (e) {
+    } catch {
       setStatus('error');
-      setMsg('Không kết nối được backend. Hãy kiểm tra URL.');
+      setMsg('Không kết nối được Supabase. Kiểm tra biến môi trường.');
     }
   }
 
@@ -58,13 +45,11 @@ export default function LandingPage() {
         </Link>
 
         <button
-          onClick={checkHealth}
+          onClick={checkConnection}
           disabled={status === 'loading'}
           className={`w-full py-3 px-6 rounded-2xl font-bold text-white transition-transform active:scale-95 shadow-lg ${
             status === 'ok'
               ? 'bg-kid-green'
-              : status === 'not_configured'
-              ? 'bg-kid-pink'
               : status === 'error'
               ? 'bg-kid-pink'
               : 'bg-kid-blue hover:bg-kid-blue/90'
@@ -73,38 +58,27 @@ export default function LandingPage() {
           {status === 'loading'
             ? '⏳ Đang kiểm tra...'
             : status === 'ok'
-            ? '✅ API hoạt động'
-            : status === 'not_configured'
-            ? '❌ Thiếu Database'
+            ? '✅ Kết nối thành công'
             : status === 'error'
             ? '❌ Thử lại'
-            : '🔍 Kiểm tra API'}
+            : '🔍 Kiểm tra kết nối'}
         </button>
 
-        {status === 'not_configured' && (
-          <Link
-            href="/setup"
-            className="block w-full mt-3 py-3 px-6 rounded-2xl font-black text-white bg-kid-orange hover:bg-orange-600 transition-colors shadow-lg"
-          >
-            ⚙️ Cài đặt Database & API
-          </Link>
-        )}
-
         {msg && (
-          <div className="mt-4 p-3 rounded-xl bg-gray-50 text-sm text-gray-700 break-all border border-gray-200">
+          <div className={`mt-4 p-3 rounded-xl text-sm font-bold border ${
+            status === 'ok'
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : 'bg-red-50 text-red-600 border-red-200'
+          }`}>
             {msg}
           </div>
         )}
 
-        <div className="mt-6 text-left">
-          <label className="block text-xs font-bold text-gray-400 mb-1">Cấu hình Backend API URL (Dành cho Admin):</label>
-          <input
-            type="text"
-            value={apiUrl}
-            onChange={(e) => setApiUrl(e.target.value)}
-            placeholder="https://kid-adventure-api.onrender.com"
-            className="w-full text-xs text-gray-600 p-2 rounded-lg border border-gray-200 focus:outline-none focus:border-kid-blue"
-          />
+        <div className="mt-6 pt-5 border-t border-gray-100">
+          <p className="text-xs text-gray-400 font-bold">
+            ✨ Powered by Supabase • Cloudflare Pages • Gemini AI
+          </p>
+          <p className="text-xs text-gray-300 mt-1">Forever Free Architecture</p>
         </div>
       </div>
     </main>

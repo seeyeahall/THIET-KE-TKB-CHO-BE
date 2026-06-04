@@ -1,11 +1,16 @@
 import type { Child, Activity, Schedule, ScheduleItem, AIProvider } from './types';
 
 export function getApiBaseUrl(): string {
+  let url = 'http://localhost:8001';
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('BACKEND_API_URL');
-    if (saved) return saved.replace(/\/$/, '');
+    if (saved) url = saved;
+    else if (process.env.NEXT_PUBLIC_API_BASE_URL) url = process.env.NEXT_PUBLIC_API_BASE_URL;
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    url = process.env.NEXT_PUBLIC_API_BASE_URL;
   }
-  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8001';
+  // Strip trailing slash and /api/v1 if present to prevent double prefix
+  return url.replace(/\/$/, '').replace(/\/api\/v1$/, '');
 }
 
 function getToken(): string | null {
@@ -51,7 +56,10 @@ export const api = {
   // Children
   listChildren: () => fetchJson<Child[]>('/api/v1/children'),
   getChild: (id: string) => fetchJson<Child>(`/api/v1/children/${id}`),
-  getChildStats: (id: string) => fetchJson<{ completed_activities: number; total_activities: number; xp: number; coins: number }>(`/api/v1/children/${id}/stats`),
+  getChildStats: (id: string, period?: 'week' | 'month' | 'year') => {
+    const qs = period ? `?period=${period}` : '';
+    return fetchJson<{ completed_activities: number; total_activities: number; xp: number; coins: number; period?: string }>(`/api/v1/children/${id}/stats${qs}`);
+  },
   createChild: (data: Partial<Child>) =>
     fetchJson<Child>('/api/v1/children', { method: 'POST', body: JSON.stringify(data) }),
 
@@ -67,6 +75,12 @@ export const api = {
   // Schedules
   listSchedules: (childId: string) =>
     fetchJson<Schedule[]>(`/api/v1/schedules?child_id=${childId}`),
+  /** Lấy tất cả schedules trong tháng 'YYYY-MM' */
+  listSchedulesByMonth: (childId: string, month: string) =>
+    fetchJson<Schedule[]>(`/api/v1/schedules?child_id=${childId}&month=${month}`),
+  /** Lấy schedule items của 1 ngày cụ thể 'YYYY-MM-DD' */
+  getScheduleItemsByDate: (childId: string, date: string) =>
+    fetchJson<ScheduleItem[]>(`/api/v1/schedule-items?child_id=${childId}&date=${date}`),
   getCurrentSchedule: (childId: string, weekStart?: string) => {
     const qs = new URLSearchParams({ child_id: childId });
     if (weekStart) qs.append('week_start', weekStart);
@@ -80,6 +94,11 @@ export const api = {
     fetchJson<ScheduleItem>(`/api/v1/schedule-items/${itemId}`, {
       method: 'PATCH',
       body: JSON.stringify({ status, notes }),
+    }),
+  moveScheduleItem: (itemId: string, dayOfWeek: number, startTime: string) =>
+    fetchJson<ScheduleItem>(`/api/v1/schedule-items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ day_of_week: dayOfWeek, start_time: startTime }),
     }),
 
   // Media

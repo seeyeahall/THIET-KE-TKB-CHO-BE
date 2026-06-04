@@ -36,6 +36,20 @@ class ScheduleItemStatusUpdate(BaseModel):
     notes: str | None = None
 
 
+@router.get("/schedules")
+def list_schedules(
+    child_id: UUID = Query(),
+    family: dict = Depends(get_current_family),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, object]]:
+    # Verify child belongs to family
+    from app.repositories.children import ChildrenRepository
+    child = ChildrenRepository().get_by_id(child_id)
+    if not child or str(child.get("family_id")) != str(family["id"]):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
+    return _schedules_service().list_schedules(child_id)
+
+
 @router.get("/schedules/current")
 def get_current_schedule(
     child_id: UUID = Query(),

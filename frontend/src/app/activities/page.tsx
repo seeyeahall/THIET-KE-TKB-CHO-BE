@@ -82,7 +82,7 @@ export default function ActivitiesPage() {
   if (!selectedChild) return null;
 
   return (
-    <main className="min-h-screen p-6 pb-24">
+    <main className="min-h-[100dvh] p-6 pb-6">
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <h2 className="text-2xl font-black text-kid-orange mb-6">

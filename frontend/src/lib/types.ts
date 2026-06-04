@@ -31,7 +31,7 @@ export interface ScheduleItem {
   day_of_week: number;
   start_time?: string;
   duration_minutes: number;
-  status: 'planned' | 'complete' | 'skip' | 'postponed';
+  status: 'planned' | 'complete' | 'completed' | 'skip' | 'skipped' | 'postponed';
   activity?: Activity;
 }
 

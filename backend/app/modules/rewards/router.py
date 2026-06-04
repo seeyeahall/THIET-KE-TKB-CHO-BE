@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.database import get_supabase_client
+from app.core.database import get_supabase_client, DatabaseNotConfiguredError
 from app.core.dependencies import get_current_family
 from app.core.security import CurrentUser, get_current_user
 
@@ -22,14 +22,27 @@ def complete_activity(
     family: dict = Depends(get_current_family),
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, object]:
-    client = get_supabase_client()
-
     # Verify child belongs to family
     from app.repositories.children import ChildrenRepository
 
     child = ChildrenRepository().get_by_id(payload.child_id)
     if not child or str(child.get("family_id")) != str(family["id"]):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
+
+    # Rewards logic
+    xp_earned = 15
+    coins_earned = 5
+
+    try:
+        client = get_supabase_client()
+    except DatabaseNotConfiguredError:
+        # Dev mode: return simulated success without DB write
+        return {
+            "status": "success",
+            "xp_earned": xp_earned,
+            "coins_earned": coins_earned,
+            "dev_mode": True,
+        }
 
     # Update schedule item
     item_resp = (
@@ -42,10 +55,6 @@ def complete_activity(
 
     if not item_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule item not found")
-
-    # Rewards logic
-    xp_earned = 15
-    coins_earned = 5
 
     # Update rewards
     rewards_resp = client.table("rewards").select("*").eq("child_id", str(payload.child_id)).execute()

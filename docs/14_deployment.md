@@ -28,7 +28,7 @@ Cloudflare DNS/CDN
 **Cau hinh build:**
 - Framework preset: `Next.js` (nhung chi static export).
 - Build command: `npm run build`.
-- Output directory: `out` (hoac `dist` tuy cau hinh `next.config.js`).
+- Output directory: `dist_new` (cau hinh trong `next.config.js`, doi tu `dist` de tranh xung dot voi process serve).
 
 **Env frontend (khong chua secret backend):**
 - `NEXT_PUBLIC_API_BASE_URL=https://kid-adventure-api.onrender.com` (hoac domain backend).

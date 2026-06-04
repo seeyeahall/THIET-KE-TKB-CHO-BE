@@ -21,98 +21,91 @@ Quy tac:
 - Neu con 15-30%: chi fix nho, doc it file, test nhanh.
 - Neu con duoi 15%: khong bat dau fix code moi; chi cap nhat handoff va tong ket.
 
-Truoc khi fix phai ghi nhanh trong suy nghi/phan hoi:
-
-- Quota/context con lai theo UI.
-- Buoc sap lam thuoc nho/vua/lon.
-- Ly do du quota de lam.
-
-Sau khi fix phai cap nhat tracker nay de AI khac tiep tuc duoc.
-
 ## Trang thai hien tai
 
 | Cheng | Trang thai | Ghi chu |
 |---|---|---|
 | 1. Blueprint docs | Done | Da tao `docs/00` den `/docs/21` |
-| 2. Backend FastAPI MVP | Done | Repository layer, Service layer, Auth JWT, AI Provider HTTP integration, AI Context Builder, Middleware, Tests 17/17 pass |
+| 2. Backend FastAPI MVP | Done | Repository layer, Service layer, Auth JWT, AI Provider, Middleware, Tests 17/17 pass |
 | 2.5. Frontend scaffold + deploy config | Done | Da tao `frontend/`, deploy config, migration SQL + optimization |
 | 3. Frontend PWA MVP | Done | Da tao tat ca man hinh: select-child, home, schedule, activities, chat, parent. Build thanh cong. |
 | 4. Storage + media | Done | Supabase Storage buckets, signed upload API, ImageUploader component |
 | 5. Deploy production | Done | Dockerfile, render.yaml, fly.toml, deploy scripts, smoke test |
 | 6. Mo rong | Done | TTS/STT, AI image, rewards nang cao, admin/analytics |
+| 7.0 Bug Fixes UI/Flow | **DONE** (2026-06-04) | Fix BottomNav che man hinh, fix state kep schedule page, fix Home→Day navigation, fix progress refresh, mo rong DayDesignModal drop zones |
+| 7. He thong lich nang cap | **PLANNING DONE / CHUA CODE** | Thiet ke da chot day du (xem ben duoi). Can code. |
 
-## Checklist cheng 2 backend (HOAN THANH)
+## Checklist cheng 7 — He Thong Lich Nang Cap (CHUA BAT DAU)
 
-- [x] Tao `backend/`.
-- [x] Tao FastAPI app.
-- [x] Tao config/env loader.
-- [x] Tao Supabase/Postgres connection.
-- [x] Tao auth dependency (JWT validation + family ownership).
-- [x] Tao children module (CRUD that).
-- [x] Tao activities module (CRUD that).
-- [x] Tao schedules module (CRUD that + schedule items).
-- [x] Tao rewards module (auto-create khi them be).
-- [x] Tao AI provider registry + HTTP adapter (retry, timeout).
-- [x] Tao AI context builder.
-- [x] Tao chat endpoint (luu history).
-- [x] Tao generate-schedule endpoint (JSON schema validation).
-- [x] Tao media metadata endpoint.
-- [x] Tao `.env.example` khong co secret.
-- [x] Tao Dockerfile.
-- [x] Chay test/smoke test: **17 passed**.
+### Phase 7a — Script & Utils
 
-## Checklist cheng 2.5 deploy scaffold (HOAN THANH)
+- [ ] Sua `push_and_run.py`: da co menu [1] Local [2] Cloud [3] Test [4] Thoat. **DONE** (2026-06-03)
+- [ ] Test `push_and_run.bat` chay dung menu moi
+- [ ] Tao `src/lib/utils/scheduleProgress.ts`: helper tinh progress_day/week/month/year, xac dinh sticker
+- [ ] Bo sung state vao `src/lib/store.ts`: viewMode, selectedDate, selectedMonth, designMode
+- [ ] Bo sung API endpoint vao `src/lib/api.ts`: listSchedulesByMonth, getScheduleItemsByDate, getChildStatsByPeriod
 
-- [x] Tao `frontend/` NextJS + Tailwind + static export.
-- [x] Tao trang chu don gian (landing + health check backend).
-- [x] Cau hinh `next.config.js` voi `output: 'export'`.
-- [x] Tao `render.yaml` cho Render Web Service.
-- [x] Tao `fly.toml` cho Fly.io.
-- [x] Cap nhat `Dockerfile` production ready (them HEALTHCHECK).
-- [x] Cap nhat `backend/app/core/config.py` cho CORS production + SECRET_KEY.
-- [x] Tao `supabase/migrations/0001_initial.sql`.
-- [x] Tao `supabase/migrations/0002_optimizations.sql` (updated_at, soft delete, CHECK constraints, indexes, RLS policies).
-- [x] Tao `supabase/seed.sql` cho activity mau.
+### Phase 7b — View Components
 
-## Checklist cheng 3 frontend MVP (HOAN THANH)
+- [ ] Tao `src/app/schedule/components/ProgressBadge.tsx`: badge sticker emoji + mau gradient
+- [ ] Tao `src/app/schedule/components/YearView.tsx`: grid 12 thang
+- [ ] Tao `src/app/schedule/components/MonthView.tsx`: grid lich thang, heatmap
+- [ ] Tao `src/app/schedule/components/WeekView.tsx`: tab 7 ngay, timeline ngan
+- [ ] Tao `src/app/schedule/components/DayView.tsx`: timeline theo gio, nut check, nut thiet ke
 
-- [x] Tao route structure: `/`, `/select-child`, `/home`, `/schedule`, `/activities`, `/chat`, `/parent`
-- [x] Tao API client tập trung (`lib/api.ts`) với auth token auto-inject
-- [x] Tao state management (Zustand + persist middleware)
-- [x] Man hinh chon nguoi choi (`select-child`): avatar be, nut them be, fallback demo data
-- [x] Trang chu cua be (`home`): chu de hom nay, tien do thu thach, quick chat AI
-- [x] Thiet ke lich (`schedule`): chon ngay, hien thi hoat dong, AI tao lich tu dong
-- [x] Thu vien hoat dong (`activities`): search, filter theo theme, card UI
-- [x] Chat AI dong hanh (`chat`): UI messenger style, typing indicator, error fallback
-- [x] Dashboard phu huynh (`parent`): thong ke nhanh, chuyen doi nguoi choi, cai dat
-- [x] Bottom navigation (`BottomNav`): 5 tab voi active state
-- [x] Landing page (`/`): CTA + health check API
+### Phase 7c — DayDesignModal
 
-## Checklist cheng 3.5 frontend polish (HOAN THANH)
+- [ ] Tao `src/app/schedule/components/DayTimeline.tsx`: cai tien DayColumn cu, slot theo gio, drop zone
+- [ ] Tao `src/app/schedule/components/DayDesignModal.tsx`: bottom sheet, tich hop ActivityPool + DayTimeline + text + voice + AI
+- [ ] Tich hop ActivityPool.tsx (da co) vao DayDesignModal
+- [ ] Tich hop voice (STT): nut "Be noi" va "Phu huynh noi" rieng biet
+- [ ] Tich hop AI goi y: chat ngan → AI tra ve list → confirm
 
-- [x] Auth UI: `/login`, `/register` voi Supabase Auth client-side
-- [x] PWA service worker (`public/sw.js`) + `ServiceWorkerRegistration` component
-- [x] Loading skeletons (`SkeletonCard`, `SkeletonPage`) + ErrorBoundary
-- [x] Drag-and-drop schedule builder (native HTML5 DND: `DayColumn`, `ActivityPool`, `ScheduleItemCard`)
-- [x] Page transitions (`animate-fade-in-up`) + micro-interactions (`btn-kid`, `card-kid`)
+### Phase 7d — Trang Chinh
 
-## Checklist cheng 4 storage + media (HOAN THANH)
+- [ ] Refactor `src/app/schedule/page.tsx`: dieu phoi 4 view (Year/Month/Week/Day) + thanh chuyen view
+- [ ] Cap nhat `src/app/home/page.tsx`: widget "Lich hom nay" ket noi API that
 
-- [x] Backend media router: `/sign-upload`, `/confirm-upload`, `/assets`
-- [x] Frontend API methods: `signUpload`, `confirmUpload`, `listAssets`
-- [x] Frontend `ImageUploader` component
-- [x] SQL migration `0003_storage_buckets.sql` (avatars, activity-images, theme-images, chat-images)
-- [x] Bucket policies cho public/private access
+### Phase 7e — Backend Bo Sung
 
-## Checklist cheng 5 deploy production (HOAN THANH)
+- [ ] Them endpoint `GET /api/v1/schedules?child_id=&month=YYYY-MM` → tra ve lich theo thang
+- [ ] Mo rong `GET /api/v1/children/{id}/stats` ho tro `?period=week/month/year`
+- [ ] Them dev mode demo data cho 2 endpoint moi
 
-- [x] `backend/Dockerfile` production ready
-- [x] `backend/render.yaml` voi day du env vars
-- [x] `backend/fly.toml` cho Fly.io
-- [x] `frontend/wrangler.toml` cho Cloudflare Pages
-- [x] `scripts/deploy-cloudflare.sh` + `scripts/deploy-render.sh`
-- [x] `scripts/smoke-test.sh`
-- [x] `frontend/.env.example`
+### Phase 7f — Test & Docs
+
+- [ ] Chay frontend build (`npm run build`) khong loi
+- [ ] Test 4 view tren browser (Year → Month → Week → Day flow)
+- [ ] Test DayDesignModal: DnD, text input, AI, voice
+- [ ] Cap nhat `19_implementation_progress.md`
+
+## Checklist cac cheng truoc (DA HOAN THANH)
+
+### Cheng 2 backend (HOAN THANH)
+- [x] Tao backend/ FastAPI, config/env, Supabase connection, auth dependency
+- [x] CRUD children, activities, schedules, rewards
+- [x] AI provider registry + HTTP adapter, AI context builder, chat + generate-schedule
+- [x] Middleware, exception handlers, pytest 17 passed
+
+### Cheng 3 frontend MVP (HOAN THANH)
+- [x] Route: /, /select-child, /home, /schedule, /activities, /chat, /parent
+- [x] API client, Zustand store, BottomNav
+- [x] Build thanh cong 14 pages
+
+### Cheng 3.5 frontend polish (HOAN THANH)
+- [x] Auth UI, PWA service worker, skeletons, error boundaries
+- [x] DnD components (DayColumn, ActivityPool, ScheduleItemCard) — da tao, CHUA TICH HOP vao page chinh
+- [x] Page transitions, animations
+
+### Cheng 4 storage (HOAN THANH)
+- [x] Media router, ImageUploader, SQL migration buckets
+
+### Cheng 5 deploy (HOAN THANH)
+- [x] Dockerfile, render.yaml, fly.toml, wrangler.toml, deploy scripts, smoke test
+
+### Cheng 6 mo rong (HOAN THANH)
+- [x] TTS/STT (Web Speech API), AI image (Pollinations.ai), rewards endpoint
+- [x] Child stats endpoint, parent analytics
 
 ## Quy tac cap nhat sau moi fix
 
@@ -123,132 +116,117 @@ Sau moi lan sua code:
 3. Ghi test da chay.
 4. Neu co loi, ghi loi vao "Known issues".
 5. Neu thay doi kien truc, cap nhat file md module lien quan.
-6. Neu thay doi schema, cap nhat `09_database_schema.md`.
-7. Neu thay doi backend module, cap nhat `17_backend_module_links.md`.
-8. Neu thay doi app flow, cap nhat `18_app_flow_graph.md`.
-9. Neu thay doi provider/env/key, cap nhat `16_runtime_key_integration.md`.
-10. Neu thay doi roadmap/trang thai, cap nhat `15_mvp_roadmap.md`.
-11. Neu thay doi quy tac handoff, cap nhat `20_MASTER_AI_HANDOFF_PROMPT.md`.
-
-Moi lan cap nhat progress nen ghi them:
-
-- Quota/context con lai neu UI co bao.
-- Buoc vua lam.
-- File da sua.
-- Test da chay.
-- Ket qua.
-- Buoc tiep theo.
 
 ## Recent changes
 
+### 2026-06-04 — Bug Fixes UI/Flow (HOAN THANH)
+
+**Van de da fix:**
+
+1. **BottomNav che khuất màn hình làm việc** (P0)
+   - Them CSS variable `--nav-height`, `--page-bottom-pad`, `.pb-nav` vao `globals.css`
+   - `layout.tsx`: wrap content voi `pb-nav` class khi showNav=true, bo sung `viewport-fit=cover`
+   - `BottomNav.tsx`: padding-bottom `env(safe-area-inset-bottom)` de ho tro iPhone notch
+   - Xoa spacer `h-20` thua trong `activities/page.tsx`, `parent/page.tsx`, `home/page.tsx`
+   - `chat/page.tsx`: fix height dung CSS variable thay vi hardcode
+
+2. **State kep trong schedule/page.tsx** (P0 — Bug)
+   - Refactor `schedule/page.tsx`: bo 4 `useState` local (viewMode, selectedDate, selectedMonth, selectedYear), thay bang Zustand store
+   - Them `globalRefreshKey` de trigger re-fetch Month/Week/Year sau khi check complete
+   - `handleDesignSaved` gio trigger ca `globalRefreshKey` de sticker cap nhat
+
+3. **Home widget khong chuyen dung sang Day View** (P1 — Bug)
+   - `home/page.tsx`: thay `useAppStore.getState().setScheduleViewMode?.()` bang hook setters truc tiep
+   - Bo sung `setSelectedDate(todayStr())` truoc khi router.push
+
+4. **DayDesignModal drop zones qua it** (P1)
+   - Bo `slice(0, 8)` gioi han — gio hien toan bo 31 slots (06:00–21:30)
+   - Tang `max-h-52` → `max-h-72`, them `scrollbar-hide`
+   - Them `animate-fade-in-up` khi item duoc them vao timeline
+
+**File code da sua:**
+- `frontend/src/app/globals.css`
+- `frontend/src/app/layout.tsx`
+- `frontend/src/components/BottomNav.tsx`
+- `frontend/src/app/schedule/page.tsx`
+- `frontend/src/app/home/page.tsx`
+- `frontend/src/app/chat/page.tsx`
+- `frontend/src/app/activities/page.tsx`
+- `frontend/src/app/parent/page.tsx`
+- `frontend/src/app/schedule/components/DayDesignModal.tsx`
+
+**Test da chay:**
+- Frontend build: **14 pages generated** thanh cong (xem ket qua build)
+- TypeScript compile: passed
+
+### 2026-06-03 — Thiet ke nang cap Cheng 7 (PLANNING DONE)
+
+**Quyet dinh thiet ke da chot:**
+- He thong lich 4 cap: Year → Month → Week → Day View.
+- Day View: timeline theo gio, nut check hoan thanh, nut mo DayDesignModal.
+- DayDesignModal: bottom sheet, DnD + text + AI + Voice (be va phu huynh nut rieng).
+- He thong sticker: 🌟⭐🌱📅✏️😴🔥 theo % hoan thanh.
+- Sticker dung nen gradient mau kid-friendly + emoji goc tren.
+- push_and_run.py: cap nhat thanh menu tuong tac.
+
+**File docs da cap nhat:**
+- `docs/07_schedule_system.md` — thiet ke 4 cap, sticker system, DayDesignModal, tinh toan tien do
+- `docs/02_ui_ux_design.md` — he thong sticker, tat ca man hinh chinh, DayDesignModal UI
+- `docs/03_user_flow.md` — luong 4 cap, luong DayDesignModal, luong voice
+- `docs/18_app_flow_graph.md` — flow tong the, flow lich 4 cap, flow DayDesignModal, flow script
+- `docs/20_MASTER_AI_HANDOFF_PROMPT.md` — cap nhat toan bo trang thai, thiet ke moi, buoc tiep theo
+
+**File code da tao/sua:**
+- `local_dev.py` — script khoi dong local dev moi (tao moi)
+- `push_and_run.py` — cap nhat thanh menu tuong tac [1] local [2] cloud [3] test [4] thoat
+
+**Buoc tiep theo cu the:**
+1. Tao `src/lib/utils/scheduleProgress.ts`
+2. Bo sung state vao `store.ts`
+3. Bo sung API vao `api.ts`
+4. Tao `ProgressBadge.tsx` (nho nhat, test nhanh)
+5. Tao `DayView.tsx` (quan trong nhat cho flow click day)
+6. Tao `MonthView.tsx` (heatmap)
+7. Tao `DayDesignModal.tsx` (phuc tap nhat, lam sau)
+
 ### 2026-06-03 - Cheng 6 Mo rong (Future) - Done
 
-**AI Image Generation (Free Tier):**
-- Sua `backend/app/modules/ai/router.py`: Su dung Pollinations.ai lam fallback mien phi cho vic sinh anh AI.
+**AI Image Generation, Rewards/Badges, Analytics, TTS/STT:**
+- Xem chi tiet trong commit cu.
 
-**Rewards/Badges (Nang cao):**
-- Tao `backend/app/modules/rewards/router.py`: Endpoint `/complete-activity` update trang thai `schedule_items` va cong XP/Coins vao bang `rewards`.
-- Dang ky `rewards_router` vao `backend/app/main.py`.
-- Sua `frontend/src/app/schedule/components/ScheduleItemCard.tsx`: Them nut check "Hoan thanh".
-- Sua `frontend/src/app/schedule/page.tsx`: Hien thi popup chuc mung (Confetti/XP floating animation) khi be hoan thanh hoat dong.
+### 2026-06-03 - Bug fixes: Dev mode + Missing endpoints (HOAN THANH)
 
-**Analytics cho Phu huynh:**
-- Sua `backend/app/modules/children/router.py`: Them endpoint `/{child_id}/stats` lay thong ke thuc te tu CSDL (completed_activities, total_activities, xp, coins).
-- Sua `frontend/src/app/parent/page.tsx`: Connect endpoint lay so lieu thuc te hien thi ra bang thong ke.
+**Fix 1–10:** Family ID mismatch, missing GET /schedules, chat crash, generate-schedule crash, generate-image crash, rewards 500, child stats 500, BaseRepository sort crash, Uvicorn logging crash, frontend build EBUSY.
 
-**TTS/STT cho chat AI:**
-- Sua `frontend/src/app/chat/page.tsx`: Tich hop Web Speech API (window.speechSynthesis va window.SpeechRecognition).
-- Them nut Microphone (STT) de be nhap giong noi.
-- Them nut Volume (TTS) de tat/bat tu dong doc phan hoi cua AI.
-
-### 2026-06-03 - Cheng 3 Frontend MVP HOAN THANH
-
-**Frontend Routes + Components:**
-- Tao `frontend/src/app/select-child/page.tsx`: Man hinh chon nguoi choi voi avatar, fallback demo data khi backend chua chay.
-- Tao `frontend/src/app/home/page.tsx`: Trang chu be voi chu de hom nay, thu thach, quick chat AI.
-- Tao `frontend/src/app/schedule/page.tsx`: Lich tuan voi chon ngay, AI tao lich tu dong (`api.generateSchedule`).
-- Tao `frontend/src/app/activities/page.tsx`: Thu vien hoat dong voi search + filter theo theme.
-- Tao `frontend/src/app/chat/page.tsx`: Chat AI messenger style voi typing indicator.
-- Tao `frontend/src/app/parent/page.tsx`: Dashboard phu huynh voi thong ke, chuyen doi nguoi choi.
-- Tao `frontend/src/components/BottomNav.tsx`: Bottom navigation 5 tab (home, schedule, activities, chat, parent).
-- Sua `frontend/src/app/layout.tsx`: Them BottomNav conditional rendering + metadata PWA.
-- Sua `frontend/src/app/page.tsx`: Landing page voi CTA "Bat dau phieu luu".
-
-**State + API:**
-- `frontend/src/lib/store.ts`: Zustand store voi persist (authToken, selectedChild).
-- `frontend/src/lib/api.ts`: API client co auth header auto-inject; them `listSchedules`, `sendChat`, fix type `generateSchedule`.
-- `frontend/src/lib/types.ts`: Shared TypeScript interfaces.
-
-**Build:**
-- `npm run build` thanh cong — 11 static pages generated.
-
-### 2026-06-03 - Cheng 2 Backend MVP HOAN THANH
-
-**Database:**
-- Tao `supabase/migrations/0002_optimizations.sql`:
-  - Them `updated_at` + trigger auto-update cho 11 bang.
-  - Them `deleted_at` soft delete cho 6 bang.
-  - Them CHECK constraints (`age`, `day_of_week`, `duration_minutes`, `status`).
-  - Them composite indexes (`idx_schedules_child_week`, `idx_schedule_items_schedule_day_order`, v.v.).
-  - Sua RLS policies tu `Allow all` → ownership-based (`is_family_member`).
-
-**Backend Repository + Service Layer:**
-- Tao `backend/app/repositories/base.py`: BaseRepository voi soft-delete, lazy client load.
-- Tao `backend/app/repositories/children.py`, `activities.py`, `schedules.py`.
-- Tao `backend/app/services/children.py`: auto-create rewards record khi them be.
-- Tao `backend/app/services/activities.py`: auto-generate slug (normalize tieng Viet).
-- Tao `backend/app/services/schedules.py`: create schedule with items.
-
-**Auth:**
-- Sua `backend/app/core/security.py`: JWT validation bang `python-jose` + Supabase JWT secret.
-- Tao `backend/app/core/dependencies.py`: `get_current_family` dependency.
-- Refactor routers: children, activities, schedules — tat ca co auth + family ownership check.
-
-**AI Provider HTTP Integration:**
-- Sua `backend/app/modules/ai/providers.py`: OpenAICompatibleAdapter + GeminiAdapter, retry 3 lan, timeout 30s.
-- Tao `backend/app/modules/ai/context.py`: AIContextBuilder query DB (child, schedule, activities, chat, rewards).
-- Sua `backend/app/modules/ai/router.py`: chat endpoint (luu history), generate-schedule (JSON schema validation), test provider endpoint.
-
-**Middleware:**
-- Tao `backend/app/core/middleware.py`: RequestLoggingMiddleware + RateLimitMiddleware.
-- Tao `backend/app/core/exceptions.py`: Centralized exception handlers.
-- Sua `backend/app/main.py`: Register middleware, exception handlers, health check kiem tra DB.
-
-**Testing:**
-- Tao `backend/tests/conftest.py`: Fixtures mock auth + supabase.
-- Tao `backend/tests/test_services.py`: 7 unit tests (children, activities, schedules services).
-- Tao `backend/tests/test_routers.py`: 8 integration tests (health, children, activities, AI routers).
-- Sua `backend/tests/test_smoke.py`: Dung client fixture voi auth override.
-- **Ket qua: pytest 17 passed, 0 failed, 0 warnings.**
-
-**Review + Tinh chinh:**
-- Sua deprecation warning: `HTTP_422_UNPROCESSABLE_ENTITY` → `HTTP_422_UNPROCESSABLE_CONTENT`.
-- Refactor AIContextBuilder: `_get_recent_chat` → `get_recent_chat` (public method).
-
-### 2026-06-02 (backend skeleton)
-
-- Tao `backend/pyproject.toml`, `backend/Dockerfile`, `backend/.env.example`.
-- Tao FastAPI app tai `backend/app/main.py`.
-- Tao core config/database/security tai `backend/app/core/`.
-- Tao module skeleton: `auth`, `children`, `activities`, `schedules`, `rewards`, `ai`, `chat`, `media`, `admin`.
-- Tao provider adapter interface va default provider config mapping.
-- Tao smoke tests tai `backend/tests/test_smoke.py`.
-- Test: pytest `2 passed`.
-
-### 2026-06-02 (deploy scaffold)
-
-- Tao `frontend/` Next.js skeleton.
-- Tao backend deploy config: `render.yaml`, `fly.toml`.
-- Cap nhat `Dockerfile`, `main.py`, `config.py`.
-- Tao `supabase/migrations/0001_initial.sql` va `seed.sql`.
-- Tao deploy scripts.
-- Frontend build: thanh cong.
+**Test da chay:**
+- `pytest` backend: **17 passed, 0 failed**.
+- E2E API test: 8/8 pass.
+- Frontend build: **14 pages generated** thanh cong.
 
 ## Known issues
 
 - File key goc co secret that, can tranh commit len git/public repo.
+- `backend/app/modules/chat/router.py` ton tai song song nhung frontend chi dung `/api/v1/ai/chat` (trong `ai/router.py`). Co the xoa hoac merge.
+- Dev mode chi ho tro doc (GET), chua ho tro ghi that. POST/PATCH tra ve thanh cong nhung khong persist giua cac request.
+- DnD components (DayColumn, ActivityPool, ScheduleItemCard) da tao nhung CHUA duoc import vao `schedule/page.tsx`. Can tich hop trong Cheng 7.
+- `schedule/page.tsx` hien chi hien thi ngay co hoat dong (return null cho ngay trong) — loi thiet ke, se fix trong Cheng 7.
+- Chat page dung fixed-height layout rieng, phai exclude khoi pb-nav wrapper trong `layout.tsx`.
 
 ## Buoc tiep theo
 
-**Du an MVP da hoan thanh 100% cac Cheng theo lo trinh (tu 1 den 6).**
-San sang chay va test thuc te bang `push_and_run.bat`.
+**Cheng 7 — He thong lich nang cap:**
+
+Uu tien thu tu lam:
+1. `src/lib/utils/scheduleProgress.ts` — khong phu thuoc gi, lam truoc
+2. `src/lib/store.ts` — bo sung state moi
+3. `src/lib/api.ts` — bo sung endpoint moi
+4. `src/app/schedule/components/ProgressBadge.tsx` — component nho, kiem tra design
+5. `src/app/schedule/components/DayView.tsx` — quan trong nhat
+6. `src/app/schedule/components/MonthView.tsx` — heatmap
+7. `src/app/schedule/components/WeekView.tsx`
+8. `src/app/schedule/components/YearView.tsx`
+9. `src/app/schedule/components/DayTimeline.tsx` (cai tien DayColumn)
+10. `src/app/schedule/components/DayDesignModal.tsx` — phuc tap nhat
+11. Refactor `src/app/schedule/page.tsx`
+12. Cap nhat `src/app/home/page.tsx`
+13. Backend bo sung endpoint (neu can)

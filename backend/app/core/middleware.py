@@ -17,10 +17,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         duration = (time.time() - start) * 1000
         import logging
-        logger = logging.getLogger("uvicorn.access")
+        # Use a non-uvicorn logger to avoid format conflicts
+        logger = logging.getLogger("app.access")
         logger.info(
-            f"[{request_id}] {request.method} {request.url.path} "
-            f"- {response.status_code} - {duration:.1f}ms"
+            "[%s] %s %s - %s - %.1fms",
+            request_id, request.method, request.url.path,
+            response.status_code, duration,
         )
         response.headers["X-Request-ID"] = request_id
         return response

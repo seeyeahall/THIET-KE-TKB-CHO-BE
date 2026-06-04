@@ -1,13 +1,16 @@
 from typing import Any
 from uuid import UUID
 
-from app.core.database import get_supabase_client
+from app.core.database import get_supabase_client, DatabaseNotConfiguredError
 
 
 class AIContextBuilder:
     def __init__(self, child_id: UUID | str) -> None:
         self.child_id = str(child_id)
-        self.client = get_supabase_client()
+        try:
+            self.client = get_supabase_client()
+        except DatabaseNotConfiguredError:
+            self.client = None
 
     def build(self) -> dict[str, Any]:
         return {
@@ -19,11 +22,16 @@ class AIContextBuilder:
         }
 
     def _get_child(self) -> dict[str, Any] | None:
+        if self.client is None:
+            from app.repositories.children import ChildrenRepository
+            return ChildrenRepository().get_by_id(self.child_id)
         result = self.client.table("children").select("*").eq("id", self.child_id).limit(1).execute()
         data = result.data or []
         return data[0] if data else None
 
     def _get_recent_schedule(self, limit: int = 7) -> list[dict[str, Any]]:
+        if self.client is None:
+            return []
         result = (
             self.client.table("schedule_items")
             .select("*, schedules!inner(week_start_date, theme), activities(title, theme)")
@@ -35,6 +43,8 @@ class AIContextBuilder:
         return result.data or []
 
     def _get_recent_activities(self, limit: int = 10) -> list[dict[str, Any]]:
+        if self.client is None:
+            return []
         result = (
             self.client.table("activity_history")
             .select("*, activities(title, theme)")
@@ -45,7 +55,9 @@ class AIContextBuilder:
         )
         return result.data or []
 
-    def get_recent_chat(self, limit: int = 10) -> list[dict[str, Any]]:
+    def _get_recent_chat(self, limit: int = 10) -> list[dict[str, Any]]:
+        if self.client is None:
+            return []
         result = (
             self.client.table("chat_history")
             .select("*")
@@ -57,6 +69,8 @@ class AIContextBuilder:
         return list(reversed(result.data or []))
 
     def _get_rewards(self) -> dict[str, Any] | None:
+        if self.client is None:
+            return None
         result = self.client.table("rewards").select("*").eq("child_id", self.child_id).limit(1).execute()
         data = result.data or []
         return data[0] if data else None

@@ -122,22 +122,56 @@ backend/
   .env.example
 ```
 
-## Trang thai implementation hien tai
+## Trang thai implementation hien tai (Updated 2026-06-03)
 
-Da tao skeleton backend tai `backend/`:
+Backend MVP da hoan thien voi day du repository, service, auth, AI integration, middleware, va dev mode fallback.
 
-- `app/main.py`: FastAPI app, CORS, `GET /health`, include route modules.
+### Core modules (hoat dong)
+
+- `app/main.py`: FastAPI app, CORS, `GET /health`, include route modules, exception handlers.
 - `app/core/config.py`: env loader, CORS parsing, Supabase/provider env names.
-- `app/core/database.py`: lazy Supabase service-role client.
-- `app/core/security.py`: bearer auth dependency placeholder cho Supabase JWT.
-- `app/modules/children/router.py`: `GET /children`, `POST /children`, `GET /children/{child_id}` skeleton.
-- `app/modules/activities/router.py`: `GET /activities`, `POST /activities` skeleton.
-- `app/modules/schedules/router.py`: `GET /schedules/current`, `POST /schedules`, `PATCH /schedule-items/{item_id}` skeleton.
-- `app/modules/ai/providers.py`: `AIProviderAdapter`, `OpenAICompatibleAdapter`, default provider env mapping.
-- `app/modules/ai/router.py`: provider list/create/test va generate schedule skeleton.
-- `app/modules/chat/router.py`: `POST /ai/chat` skeleton.
-- `app/modules/media/router.py`: `POST /media/sign-upload` skeleton.
-- `app/modules/rewards/service.py`: reward service placeholder.
-- `tests/test_smoke.py`: smoke tests cho health va provider list.
+- `app/core/database.py`: lazy Supabase service-role client. Raise `DatabaseNotConfiguredError` khi thieu env.
+- `app/core/security.py`: JWT validation (`python-jose`), `get_current_user`. Dev mode: bypass signature verification khi thieu `SUPABASE_JWT_SECRET`.
+- `app/core/dependencies.py`: `get_current_family`. Dev mode: tra ve `DEMO_FAMILY` khi DB offline.
+- `app/core/middleware.py`: `RequestLoggingMiddleware` (logger `app.access`), `RateLimitMiddleware` (60 req/min).
+- `app/core/exceptions.py`: Centralized exception handlers.
 
-Route skeleton co the tra `501 Not Implemented` cho logic chua noi database/provider that. `GET /health` va `GET /api/v1/ai/providers` chay duoc de smoke test.
+### Repository layer
+
+- `app/repositories/base.py`: `BaseRepository` voi soft-delete, lazy client, in-memory demo data khi DB offline (`_is_demo()`), query builder (`_base_query`, filter, order, limit).
+- `app/repositories/children.py`: `ChildrenRepository` — demo data: 2 children (Bong 7 tuoi, Bin 8 tuoi).
+- `app/repositories/activities.py`: `ActivitiesRepository` — demo data: 3 activities (Ve tranh, Doc truyen, Trong cay).
+- `app/repositories/schedules.py`: `SchedulesRepository` + `ScheduleItemsRepository` — demo data: 1 schedule + 3 items.
+
+### Service layer
+
+- `app/services/children.py`: `ChildrenService` — auto-create rewards record khi them be.
+- `app/services/activities.py`: `ActivitiesService` — auto-generate slug (normalize tieng Viet).
+- `app/services/schedules.py`: `SchedulesService` — create schedule with items, get current schedule.
+
+### Module routers (day du CRUD + auth + dev mode)
+
+- `app/modules/children/router.py`: `GET /children`, `POST /children`, `GET /children/{id}`, `GET /children/{id}/stats` (co dev mode fallback).
+- `app/modules/activities/router.py`: `GET /activities`, `POST /activities`, `GET /activities/{id}`.
+- `app/modules/schedules/router.py`: `GET /schedules` (list), `GET /schedules/current`, `POST /schedules`, `POST /schedules/{id}/items`, `PATCH /schedule-items/{id}`.
+- `app/modules/ai/router.py`: `GET /ai/providers`, `POST /ai/providers/{id}/test`, `POST /ai/chat` (co fallback rule-based), `POST /ai/generate-schedule` (co fallback schedule), `POST /ai/generate-image` (Pollinations fallback).
+- `app/modules/ai/context.py`: `AIContextBuilder` — lay child context tu DB hoac demo data.
+- `app/modules/ai/providers.py`: `OpenAICompatibleAdapter`, `GeminiAdapter`, retry 3 lan, timeout 30s.
+- `app/modules/rewards/router.py`: `POST /rewards/complete-activity` (co dev mode fallback).
+- `app/modules/chat/router.py`: `POST /chat` — module rieng biet (frontend hien dung `/ai/chat`).
+- `app/modules/media/router.py`: `POST /media/sign-upload`, `POST /media/confirm-upload`, `GET /media/assets`.
+
+### Testing
+
+- `tests/conftest.py`: Fixtures mock auth + supabase.
+- `tests/test_services.py`: 7 unit tests.
+- `tests/test_routers.py`: 8 integration tests.
+- `tests/test_smoke.py`: Smoke tests.
+- **Ket qua: pytest 17 passed.**
+
+### Dev mode contract
+
+Khi `SUPABASE_URL` hoac `SUPABASE_SERVICE_ROLE_KEY` khong co:
+- Tat ca repository tra ve demo data thay vi crash.
+- Tat ca router co `dev_mode: true` trong response khi khong the ghi DB.
+- Auth van hoat dong voi fake Bearer token (frontend dung `"fake"` hoac bat ky token nao).

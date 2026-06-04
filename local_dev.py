@@ -1,0 +1,417 @@
+"""
+local_dev.py — Khởi động Kid Adventure Planner ở chế độ local (dev mode)
+======================================================================
+Dùng để test trên browser mà KHÔNG cần Supabase, Render, hay Cloudflare.
+Backend chạy ở http://localhost:8001  (dev mode, demo data tự động)
+Frontend chạy ở http://localhost:3000  (next dev, hot reload)
+
+Cách dùng:
+    python local_dev.py            → chạy cả backend + frontend
+    python local_dev.py --backend  → chỉ chạy backend
+    python local_dev.py --frontend → chỉ chạy frontend
+    python local_dev.py --stop     → kill tất cả process đang giữ port
+"""
+
+import os
+import sys
+import subprocess
+import time
+import webbrowser
+import argparse
+import signal
+import platform
+import shutil
+
+# ─── Config ───────────────────────────────────────────────────────────────────
+ROOT_DIR     = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR  = os.path.join(ROOT_DIR, "backend")
+FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
+
+BACKEND_PORT  = 8001
+FRONTEND_PORT = 3000
+FRONTEND_URL  = f"http://localhost:{FRONTEND_PORT}"
+BACKEND_URL   = f"http://localhost:{BACKEND_PORT}"
+
+IS_WINDOWS = platform.system() == "Windows"
+
+# ─── Màu terminal ─────────────────────────────────────────────────────────────
+def green(s):  return f"\033[92m{s}\033[0m"
+def yellow(s): return f"\033[93m{s}\033[0m"
+def red(s):    return f"\033[91m{s}\033[0m"
+def bold(s):   return f"\033[1m{s}\033[0m"
+def cyan(s):   return f"\033[96m{s}\033[0m"
+
+# ─── Tiện ích ─────────────────────────────────────────────────────────────────
+def banner():
+    print()
+    print(cyan("═" * 58))
+    print(cyan("  🚀  KID ADVENTURE PLANNER — LOCAL DEV MODE"))
+    print(cyan("═" * 58))
+    print()
+
+def check_tool(cmd: str) -> bool:
+    return shutil.which(cmd) is not None
+
+def kill_port(port: int):
+    """Kill process đang giữ port (Windows / Unix)."""
+    if IS_WINDOWS:
+        # netstat tìm PID đang giữ port
+        result = subprocess.run(
+            f'netstat -ano | findstr :{port}',
+            shell=True, capture_output=True, text=True
+        )
+        pids = set()
+        for line in result.stdout.splitlines():
+            parts = line.strip().split()
+            if parts and parts[-1].isdigit():
+                pids.add(parts[-1])
+        for pid in pids:
+            subprocess.run(f'taskkill /F /PID {pid}', shell=True,
+                           capture_output=True)
+            print(yellow(f"  ↳ Đã kill PID {pid} (port {port})"))
+    else:
+        subprocess.run(f'fuser -k {port}/tcp', shell=True, capture_output=True)
+
+def is_port_free(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) != 0
+
+def wait_for_port(port: int, timeout: int = 30, label: str = "") -> bool:
+    import socket
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                if s.connect_ex(('localhost', port)) == 0:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+# ─── Preflight checks ─────────────────────────────────────────────────────────
+def preflight_checks(mode: str) -> bool:
+    print(bold("📋 Kiểm tra môi trường..."))
+    ok = True
+
+    if mode in ("all", "backend"):
+        # Python / uvicorn / pyproject
+        if not check_tool("uvicorn"):
+            print(red("  ✗ Chưa cài uvicorn. Chạy: pip install uvicorn"))
+            ok = False
+        else:
+            print(green("  ✓ uvicorn"))
+
+        pyproject = os.path.join(BACKEND_DIR, "pyproject.toml")
+        if not os.path.exists(pyproject):
+            print(red(f"  ✗ Không tìm thấy {pyproject}"))
+            ok = False
+        else:
+            print(green("  ✓ backend/pyproject.toml"))
+
+    if mode in ("all", "frontend"):
+        npm = "npm" if not IS_WINDOWS else "npm.cmd"
+        if not check_tool(npm) and not check_tool("npm"):
+            print(red("  ✗ Chưa cài Node.js / npm. Tải tại https://nodejs.org"))
+            ok = False
+        else:
+            print(green("  ✓ npm / Node.js"))
+
+        node_modules = os.path.join(FRONTEND_DIR, "node_modules")
+        if not os.path.exists(node_modules):
+            print(yellow("  ⚠ node_modules chưa tồn tại — sẽ tự cài..."))
+        else:
+            print(green("  ✓ frontend/node_modules"))
+
+    print()
+    return ok
+
+# ─── Tạo .env nếu thiếu ───────────────────────────────────────────────────────
+def ensure_backend_env():
+    env_path = os.path.join(BACKEND_DIR, ".env")
+    example  = os.path.join(BACKEND_DIR, ".env.example")
+    if not os.path.exists(env_path):
+        if os.path.exists(example):
+            with open(example) as f:
+                content = f.read()
+            # Ghi .env với DEV_MODE=true, bỏ qua Supabase
+            dev_env = (
+                "# AUTO-GENERATED by local_dev.py — dev mode only\n"
+                "DEV_MODE=true\n"
+                "SECRET_KEY=local-dev-secret-not-for-production\n"
+                "# Supabase — để trống để dùng demo data\n"
+                "SUPABASE_URL=\n"
+                "SUPABASE_ANON_KEY=\n"
+                "SUPABASE_SERVICE_ROLE_KEY=\n"
+                "SUPABASE_JWT_SECRET=\n"
+                "# AI (tùy chọn — để trống nếu chưa có key)\n"
+                "AI_PROVIDER=\n"
+                "AI_API_KEY=\n"
+            )
+            with open(env_path, "w") as f:
+                f.write(dev_env)
+            print(green(f"  ✓ Đã tạo backend/.env (dev mode, không cần Supabase)"))
+        else:
+            print(yellow("  ⚠ Không tìm thấy .env.example — backend sẽ dùng env mặc định"))
+    else:
+        print(green("  ✓ backend/.env đã tồn tại"))
+
+def ensure_frontend_env():
+    env_path = os.path.join(FRONTEND_DIR, ".env.local")
+    if not os.path.exists(env_path):
+        content = (
+            f"NEXT_PUBLIC_API_BASE_URL=http://localhost:{BACKEND_PORT}\n"
+        )
+        with open(env_path, "w") as f:
+            f.write(content)
+        print(green(f"  ✓ Đã tạo frontend/.env.local (API → localhost:{BACKEND_PORT})"))
+    else:
+        # Đảm bảo API URL đúng với port local
+        with open(env_path) as f:
+            existing = f.read()
+        if f"localhost:{BACKEND_PORT}" not in existing:
+            with open(env_path, "a") as f:
+                f.write(f"\n# Added by local_dev.py\n"
+                        f"NEXT_PUBLIC_API_BASE_URL=http://localhost:{BACKEND_PORT}\n")
+            print(yellow(f"  ⚠ Đã thêm NEXT_PUBLIC_API_BASE_URL vào .env.local"))
+        else:
+            print(green("  ✓ frontend/.env.local đã đúng"))
+
+# ─── Khởi động backend ────────────────────────────────────────────────────────
+def start_backend() -> subprocess.Popen | None:
+    print(bold(f"\n⚙️  Khởi động Backend (port {BACKEND_PORT})..."))
+
+    if not is_port_free(BACKEND_PORT):
+        print(yellow(f"  ⚠ Port {BACKEND_PORT} đang bị chiếm — đang kill..."))
+        kill_port(BACKEND_PORT)
+        time.sleep(1)
+
+    ensure_backend_env()
+
+    # Đọc env từ .env file cho subprocess
+    env = os.environ.copy()
+    env_file = os.path.join(BACKEND_DIR, ".env")
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env.setdefault(k.strip(), v.strip())
+
+    cmd = [
+        sys.executable, "-m", "uvicorn",
+        "app.main:app",
+        "--reload",
+        "--port", str(BACKEND_PORT),
+        "--host", "0.0.0.0",
+    ]
+
+    log_path = os.path.join(BACKEND_DIR, "local_dev_backend.log")
+    log_file = open(log_path, "w", encoding="utf-8")
+
+    proc = subprocess.Popen(
+        cmd,
+        cwd=BACKEND_DIR,
+        env=env,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        # Windows: không mở cửa sổ mới
+        creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
+    )
+
+    print(f"  → Log: {log_path}")
+    print(f"  → PID: {proc.pid}")
+
+    # Chờ backend sẵn sàng
+    print("  → Đang chờ backend khởi động", end="", flush=True)
+    ready = wait_for_port(BACKEND_PORT, timeout=25)
+    print()
+    if ready:
+        print(green(f"  ✓ Backend sẵn sàng tại {BACKEND_URL}"))
+    else:
+        print(red("  ✗ Backend không phản hồi sau 25s — xem log để debug"))
+        with open(log_path) as f:
+            print(red("  --- TAIL LOG ---"))
+            lines = f.readlines()
+            for line in lines[-15:]:
+                print(f"    {line.rstrip()}")
+
+    return proc
+
+# ─── Khởi động frontend ───────────────────────────────────────────────────────
+def start_frontend() -> subprocess.Popen | None:
+    print(bold(f"\n🌐 Khởi động Frontend (port {FRONTEND_PORT})..."))
+
+    if not is_port_free(FRONTEND_PORT):
+        print(yellow(f"  ⚠ Port {FRONTEND_PORT} đang bị chiếm — đang kill..."))
+        kill_port(FRONTEND_PORT)
+        time.sleep(1)
+
+    ensure_frontend_env()
+
+    # Cài node_modules nếu chưa có
+    node_modules = os.path.join(FRONTEND_DIR, "node_modules")
+    if not os.path.exists(node_modules):
+        print(yellow("  → Đang cài node_modules (lần đầu, mất 1-2 phút)..."))
+        npm_cmd = "npm.cmd" if IS_WINDOWS else "npm"
+        subprocess.run([npm_cmd, "install"], cwd=FRONTEND_DIR, check=True)
+        print(green("  ✓ node_modules đã cài xong"))
+
+    npm_cmd = "npm.cmd" if IS_WINDOWS else "npm"
+    cmd = [npm_cmd, "run", "dev", "--", "--port", str(FRONTEND_PORT)]
+
+    log_path = os.path.join(FRONTEND_DIR, "local_dev_frontend.log")
+    log_file = open(log_path, "w", encoding="utf-8")
+
+    proc = subprocess.Popen(
+        cmd,
+        cwd=FRONTEND_DIR,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
+    )
+
+    print(f"  → Log: {log_path}")
+    print(f"  → PID: {proc.pid}")
+
+    # Chờ frontend sẵn sàng
+    print("  → Đang chờ frontend khởi động", end="", flush=True)
+    ready = wait_for_port(FRONTEND_PORT, timeout=60)
+    print()
+    if ready:
+        print(green(f"  ✓ Frontend sẵn sàng tại {FRONTEND_URL}"))
+    else:
+        print(red("  ✗ Frontend không phản hồi sau 60s — xem log để debug"))
+        with open(log_path) as f:
+            print(red("  --- TAIL LOG ---"))
+            lines = f.readlines()
+            for line in lines[-15:]:
+                print(f"    {line.rstrip()}")
+
+    return proc
+
+# ─── Smoke test nhanh ─────────────────────────────────────────────────────────
+def quick_smoke_test():
+    import urllib.request
+    import urllib.error
+    print(bold("\n🧪 Smoke test nhanh..."))
+    tests = [
+        (f"{BACKEND_URL}/health",              "Backend /health"),
+        (f"{BACKEND_URL}/api/v1/children",     "API /children"),
+        (f"{BACKEND_URL}/api/v1/schedules/current", "API /schedules/current"),
+    ]
+    for url, label in tests:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": "Bearer dev-token-demo"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as r:
+                status = r.status
+            if status < 400:
+                print(green(f"  ✓ {label} → HTTP {status}"))
+            else:
+                print(red(f"  ✗ {label} → HTTP {status}"))
+        except Exception as e:
+            print(red(f"  ✗ {label} → {e}"))
+    print()
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+def main():
+    banner()
+
+    parser = argparse.ArgumentParser(description="Local dev launcher")
+    parser.add_argument("--backend",  action="store_true", help="Chỉ chạy backend")
+    parser.add_argument("--frontend", action="store_true", help="Chỉ chạy frontend")
+    parser.add_argument("--stop",     action="store_true", help="Kill các port đang dùng")
+    parser.add_argument("--test",     action="store_true", help="Chạy smoke test (backend phải đang chạy)")
+    args = parser.parse_args()
+
+    if args.stop:
+        print(bold("🛑 Đang dọn dẹp các port..."))
+        kill_port(BACKEND_PORT)
+        kill_port(FRONTEND_PORT)
+        print(green("Xong!"))
+        return
+
+    if args.test:
+        quick_smoke_test()
+        return
+
+    # Xác định mode
+    if args.backend:
+        mode = "backend"
+    elif args.frontend:
+        mode = "frontend"
+    else:
+        mode = "all"
+
+    # Preflight
+    if not preflight_checks(mode):
+        print(red("\n❌ Kiểm tra môi trường thất bại. Sửa các lỗi trên rồi chạy lại."))
+        sys.exit(1)
+
+    procs = []
+    try:
+        if mode in ("all", "backend"):
+            p = start_backend()
+            if p:
+                procs.append(("backend", p))
+
+        if mode in ("all", "frontend"):
+            p = start_frontend()
+            if p:
+                procs.append(("frontend", p))
+
+        if mode == "all":
+            time.sleep(1)
+            quick_smoke_test()
+
+        # Mở browser
+        if mode in ("all", "frontend"):
+            print(f"\n🌍 Mở trình duyệt: {FRONTEND_URL}")
+            time.sleep(1)
+            webbrowser.open(FRONTEND_URL)
+
+        # Summary
+        print(cyan("\n" + "═" * 58))
+        print(bold("  📍 Đang chạy:"))
+        if mode in ("all", "backend"):
+            print(f"     Backend  → {BACKEND_URL}")
+            print(f"     API docs → {BACKEND_URL}/docs")
+            print(f"     Log      → backend/local_dev_backend.log")
+        if mode in ("all", "frontend"):
+            print(f"     Frontend → {FRONTEND_URL}")
+            print(f"     Log      → frontend/local_dev_frontend.log")
+        print()
+        print(bold("  Nhấn Ctrl+C để dừng tất cả."))
+        print(cyan("═" * 58 + "\n"))
+
+        # Giữ chạy cho đến khi Ctrl+C
+        while True:
+            # Kiểm tra process còn sống không
+            for name, p in procs:
+                if p.poll() is not None:
+                    print(red(f"\n⚠ Process {name} đã dừng (code {p.returncode}). Xem log để debug."))
+            time.sleep(3)
+
+    except KeyboardInterrupt:
+        print(yellow("\n\n⏹  Đang dừng tất cả services..."))
+        for name, p in procs:
+            try:
+                if IS_WINDOWS:
+                    subprocess.run(f"taskkill /F /T /PID {p.pid}",
+                                   shell=True, capture_output=True)
+                else:
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                print(green(f"  ✓ {name} đã dừng"))
+            except Exception as e:
+                print(yellow(f"  ⚠ Không thể dừng {name}: {e}"))
+        print(green("\nBye! 👋\n"))
+
+
+if __name__ == "__main__":
+    main()

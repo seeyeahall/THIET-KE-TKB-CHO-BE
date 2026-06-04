@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Child, Activity, Schedule } from './types';
 
+export type ScheduleViewMode = 'year' | 'month' | 'week' | 'day';
+
 interface AppState {
   // Auth
   authToken: string | null;
@@ -19,11 +21,38 @@ interface AppState {
   currentSchedule: Schedule | null;
   setCurrentSchedule: (schedule: Schedule | null) => void;
 
+  // Schedule view state
+  scheduleViewMode: ScheduleViewMode;
+  setScheduleViewMode: (mode: ScheduleViewMode) => void;
+  selectedDate: string;            // 'YYYY-MM-DD'
+  setSelectedDate: (date: string) => void;
+  selectedMonth: string;           // 'YYYY-MM'
+  setSelectedMonth: (month: string) => void;
+  selectedYear: number;
+  setSelectedYear: (year: number) => void;
+  designMode: boolean;             // DayDesignModal đang mở
+  setDesignMode: (open: boolean) => void;
+
   // UI
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   error: string | null;
   setError: (error: string | null) => void;
+}
+
+function getTodayStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getMonthStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
 export const useAppStore = create<AppState>()(
@@ -46,6 +75,18 @@ export const useAppStore = create<AppState>()(
       currentSchedule: null,
       setCurrentSchedule: (schedule) => set({ currentSchedule: schedule }),
 
+      // Schedule view state
+      scheduleViewMode: 'month',
+      setScheduleViewMode: (mode) => set({ scheduleViewMode: mode }),
+      selectedDate: getTodayStr(),
+      setSelectedDate: (date) => set({ selectedDate: date }),
+      selectedMonth: getMonthStr(),
+      setSelectedMonth: (month) => set({ selectedMonth: month }),
+      selectedYear: new Date().getFullYear(),
+      setSelectedYear: (year) => set({ selectedYear: year }),
+      designMode: false,
+      setDesignMode: (open) => set({ designMode: open }),
+
       isLoading: false,
       setIsLoading: (loading) => set({ isLoading: loading }),
       error: null,
@@ -56,6 +97,10 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         authToken: state.authToken,
         selectedChild: state.selectedChild,
+        scheduleViewMode: state.scheduleViewMode,
+        selectedDate: state.selectedDate,
+        selectedMonth: state.selectedMonth,
+        selectedYear: state.selectedYear,
       }),
     }
   )

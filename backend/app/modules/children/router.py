@@ -63,8 +63,18 @@ def get_child_stats(
     if not child or str(child.get("family_id")) != str(family["id"]):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
 
-    from app.core.database import get_supabase_client
-    client = get_supabase_client()
+    from app.core.database import get_supabase_client, DatabaseNotConfiguredError
+    try:
+        client = get_supabase_client()
+    except DatabaseNotConfiguredError:
+        # Dev mode: return simulated stats
+        return {
+            "completed_activities": 3,
+            "total_activities": 5,
+            "xp": 45,
+            "coins": 15,
+            "dev_mode": True,
+        }
 
     # Get completed activities count
     items_resp = client.table("schedule_items").select("id", count="exact").eq("child_id", str(child_id)).eq("status", "completed").execute()

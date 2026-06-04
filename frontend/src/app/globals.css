@@ -2,9 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Variables ────────────────────────────────────── */
+:root {
+  --nav-height: 4rem; /* 64px = BottomNav h-16 */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --page-bottom-pad: calc(var(--nav-height) + var(--safe-bottom) + 0.5rem);
+}
+
 body {
   background: linear-gradient(135deg, #fef9c3 0%, #dbeafe 100%);
   min-height: 100vh;
+}
+
+/* ─── Page padding helper — dùng cho tất cả page có BottomNav ── */
+.pb-nav {
+  padding-bottom: var(--page-bottom-pad);
 }
 
 @layer components {
@@ -22,3 +34,18 @@ body {
     display: none;
   }
 }
+
+/* ─── Safe-area cho BottomNav ────────────────────────────── */
+.pb-safe-bottom {
+  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+/* ─── Slide-up animation cho modals ─────────────────────── */
+@keyframes slide-up-modal {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1;   }
+}
+.animate-slide-up {
+  animation: slide-up-modal 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+

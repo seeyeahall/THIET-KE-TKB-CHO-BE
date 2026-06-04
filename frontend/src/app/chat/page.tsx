@@ -19,7 +19,14 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isSecure, setIsSecure] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsSecure(window.isSecureContext);
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedChild) {
@@ -58,14 +65,46 @@ export default function ChatPage() {
     recognition.lang = 'vi-VN';
     recognition.interimResults = false;
     
-    recognition.onstart = () => setIsListening(true);
+    // Watchdog timer to prevent hanging in "listening" state on some test/headless environments
+    let safetyTimer = setTimeout(() => {
+      console.warn('Speech recognition safety timeout triggered.');
+      recognition.stop();
+      setIsListening(false);
+    }, 8000);
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      clearTimeout(safetyTimer);
+      safetyTimer = setTimeout(() => {
+        recognition.stop();
+        setIsListening(false);
+      }, 10000);
+    };
+
     recognition.onresult = (event: any) => {
+      clearTimeout(safetyTimer);
       const transcript = event.results[0][0].transcript;
       setInput((prev) => (prev ? prev + ' ' + transcript : transcript));
     };
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
-    recognition.start();
+
+    recognition.onend = () => {
+      clearTimeout(safetyTimer);
+      setIsListening(false);
+    };
+
+    recognition.onerror = (e: any) => {
+      clearTimeout(safetyTimer);
+      console.error('Speech recognition error', e);
+      alert('Lỗi nhận diện giọng nói: ' + (e.error || 'không rõ') + '. Vui lòng kiểm tra quyền micro hoặc kết nối HTTPS.');
+      setIsListening(false);
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      clearTimeout(safetyTimer);
+      setIsListening(false);
+    }
   };
 
   const send = async () => {
@@ -94,7 +133,10 @@ export default function ChatPage() {
   if (!selectedChild) return null;
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main
+      className="flex flex-col"
+      style={{ height: 'calc(100dvh - var(--nav-height, 4rem) - env(safe-area-inset-bottom, 0px))' }}
+    >
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-3">
         <div className="bg-kid-orange text-white w-10 h-10 rounded-full flex items-center justify-center">
@@ -166,33 +208,40 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="bg-white border-t border-gray-100 p-4 pb-safe">
-        <div className="max-w-lg mx-auto flex gap-2">
-          <button
-            onClick={startListening}
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-              isListening
-                ? 'bg-red-500 text-white animate-pulse'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            <Mic size={18} />
-          </button>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-            placeholder="Nhắn tin cho AI..."
-            className="flex-1 bg-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-kid-yellow/50 min-w-0"
-          />
-          <button
-            onClick={send}
-            disabled={sending || !input.trim()}
-            className="bg-kid-orange text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
-          >
-            <Send size={18} />
-          </button>
+      <div className="bg-white border-t border-gray-100 p-4 flex-shrink-0">
+        <div className="max-w-lg mx-auto">
+          <div className="flex gap-2">
+            <button
+              onClick={startListening}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                isListening
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              <Mic size={18} />
+            </button>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+              placeholder="Nhắn tin cho AI..."
+              className="flex-1 bg-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-kid-yellow/50 min-w-0"
+            />
+            <button
+              onClick={send}
+              disabled={sending || !input.trim()}
+              className="bg-kid-orange text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+          {!isSecure && (
+            <p className="text-[10px] text-red-500 font-bold text-center mt-1">
+              ⚠️ Ghi âm giọng nói yêu cầu kết nối bảo mật HTTPS (hoặc localhost)
+            </p>
+          )}
         </div>
       </div>
     </main>

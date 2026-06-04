@@ -71,6 +71,23 @@ async def test_provider(
     return {"status": "ok", "provider": config.name}
 
 
+def _fallback_chat_reply(child: dict[str, object] | None, message: str) -> str:
+    """Return a friendly canned reply when no AI provider is available."""
+    name = child.get("name", "bé") if child else "bé"
+    lower_msg = message.lower()
+    if any(w in lower_msg for w in ["chào", "hello", "hi", "hey"]):
+        return f"Chào {name}! Mình rất vui được nói chuyện với bạn hôm nay. Bạn có muốn kể cho mình nghe về một điều thú vị không?"
+    if any(w in lower_msg for w in ["tạm biệt", "bye", "bai"]):
+        return f"Tạm biệt {name}! Chúc bạn một ngày vui vẻ và đầy những điều thú vị nhé!"
+    if any(w in lower_msg for w in ["cảm ơn", "thank", "cam on"]):
+        return f"Không có gì đâu {name}! Mình luôn sẵn sàng giúp đỡ bạn."
+    if any(w in lower_msg for w in ["buồn", "sad", "khóc", "mệt"]):
+        return f"{name} à, đôi khi mình cũng cảm thấy buồn. Nhưng hãy thử hít thở sâu và nghĩ đến một điều vui nha. Bạn muốn mình kể một câu chuyện vui không?"
+    if any(w in lower_msg for w in ["vui", "happy", "vẻ", "thích"]):
+        return f"Tuyệt quá {name}! Mình cũng thấy vui lây với bạn đó. Bạn đang làm gì vui vậy?"
+    return f"{name} nói thật thú vị! Mình rất thích được trò chuyện với bạn. Bạn có câu hỏi gì nữa không?"
+
+
 @router.post("/chat")
 async def chat(
     request: Request,
@@ -86,7 +103,7 @@ async def chat(
 
     builder = AIContextBuilder(payload.child_id)
     system_prompt = builder.build_system_prompt()
-    recent_chat = builder.get_recent_chat(limit=6)
+    recent_chat = builder._get_recent_chat(limit=6)
 
     messages = [{"role": "system", "content": system_prompt}]
     for m in recent_chat:
@@ -106,31 +123,34 @@ async def chat(
             api_key = key
             break
 
-    if not config:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="No AI provider configured")
+    if config:
+        adapter = build_adapter(config, api_key)
+        result = await adapter.chat(messages)
 
-    adapter = build_adapter(config, api_key)
-    result = await adapter.chat(messages)
+        if "error" not in result:
+            # Save chat history (skip if DB not configured)
+            from app.core.database import get_supabase_client, DatabaseNotConfiguredError
+            try:
+                client = get_supabase_client()
+                client.table("chat_history").insert({
+                    "child_id": str(payload.child_id),
+                    "role": "user",
+                    "message": payload.message,
+                }).execute()
+                client.table("chat_history").insert({
+                    "child_id": str(payload.child_id),
+                    "role": "assistant",
+                    "message": result["content"],
+                    "metadata": {"model": result.get("model"), "provider": config.name},
+                }).execute()
+            except DatabaseNotConfiguredError:
+                pass
 
-    if "error" in result:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result["error"])
+            return {"reply": result["content"], "provider": config.name, "model": result.get("model")}
 
-    # Save chat history
-    from app.core.database import get_supabase_client
-    client = get_supabase_client()
-    client.table("chat_history").insert({
-        "child_id": str(payload.child_id),
-        "role": "user",
-        "message": payload.message,
-    }).execute()
-    client.table("chat_history").insert({
-        "child_id": str(payload.child_id),
-        "role": "assistant",
-        "message": result["content"],
-        "metadata": {"model": result.get("model"), "provider": config.name},
-    }).execute()
-
-    return {"reply": result["content"], "provider": config.name, "model": result.get("model")}
+    # Fallback: no provider configured or API error
+    reply = _fallback_chat_reply(child, payload.message)
+    return {"reply": reply, "provider": "fallback", "model": "rule-based"}
 
 
 @router.post("/generate-schedule")
@@ -209,28 +229,44 @@ Yêu cầu:
             api_key = key
             break
 
-    if not config:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="No AI provider configured")
+    if config:
+        adapter = build_adapter(config, api_key)
+        result = await adapter.chat(
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+            options={"response_format": schedule_schema, "temperature": 0.7},
+        )
 
-    adapter = build_adapter(config, api_key)
-    result = await adapter.chat(
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
-        options={"response_format": schedule_schema, "temperature": 0.7},
-    )
+        if "error" not in result:
+            import json
+            try:
+                schedule_data = json.loads(result["content"])
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI returned invalid JSON: {exc}") from exc
 
-    if "error" in result:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result["error"])
+            return {
+                "schedule": schedule_data,
+                "provider": config.name,
+                "model": result.get("model"),
+            }
 
-    import json
-    try:
-        schedule_data = json.loads(result["content"])
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI returned invalid JSON: {exc}") from exc
-
+    # Fallback schedule when no provider or API error
+    child_name = context['child'].get('name', 'bé') if context.get('child') else 'bé'
+    fallback_schedule = {
+        "title": f"Lịch tuần của {child_name}",
+        "theme": payload.theme or "Khám phá thiên nhiên",
+        "items": [
+            {"day_of_week": 1, "start_time": "09:00", "duration_minutes": 30, "activity_title": "Vẽ tranh cây cối", "activity_theme": "Nghệ thuật", "notes": "Dùng màu nước vẽ cây trong vườn"},
+            {"day_of_week": 1, "start_time": "14:00", "duration_minutes": 20, "activity_title": "Đọc truyện khoa học", "activity_theme": "Học tập", "notes": "Khám phá vũ trụ qua sách tranh"},
+            {"day_of_week": 2, "start_time": "09:30", "duration_minutes": 25, "activity_title": "Trồng cây đậu", "activity_theme": "Thiên nhiên", "notes": "Theo dõi cây lớn lên mỗi ngày"},
+            {"day_of_week": 3, "start_time": "10:00", "duration_minutes": 30, "activity_title": "Chạy đua với bóng", "activity_theme": "Vận động", "notes": "Chơi ngoài sân 30 phút"},
+            {"day_of_week": 4, "start_time": "09:00", "duration_minutes": 20, "activity_title": "Làm thí nghiệm nước", "activity_theme": "Học tập", "notes": "Quan sát nước đóng băng và tan chảy"},
+            {"day_of_week": 5, "start_time": "14:30", "duration_minutes": 30, "activity_title": "Vẽ tranh gia đình", "activity_theme": "Nghệ thuật", "notes": "Vẽ chân dung cả nhà"},
+        ],
+    }
     return {
-        "schedule": schedule_data,
-        "provider": config.name,
-        "model": result.get("model"),
+        "schedule": fallback_schedule,
+        "provider": "fallback",
+        "model": "rule-based",
     }
 
 
@@ -271,23 +307,27 @@ async def generate_image(
             api_key = key
             break
 
-    if not config:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="No AI provider configured")
+    image_url = None
+    if config:
+        try:
+            adapter = build_adapter(config, api_key)
+            result = await adapter.generate_image(image_prompt)
+            if "error" not in result:
+                image_url = result.get("image_url")
+        except NotImplementedError:
+            pass  # Provider doesn't support image generation
 
-    adapter = build_adapter(config, api_key)
-    result = await adapter.generate_image(image_prompt)
-
-    if "error" in result:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result["error"])
-
-    # Use Pollinations AI as free fallback if provider doesn't support image generation
-    image_url = result.get("image_url")
-    if not image_url or result.get("fallback"):
+    # Use Pollinations AI as free fallback if no provider or provider doesn't support image generation
+    if not image_url:
         import urllib.parse
         safe_prompt = urllib.parse.quote(image_prompt)
         image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=400&height=300&nologo=true"
 
-    # Save to database
-    repo.update(payload.activity_id, {"image_url": image_url})
+    # Save to database (skip if DB not configured)
+    from app.core.database import DatabaseNotConfiguredError
+    try:
+        repo.update(payload.activity_id, {"image_url": image_url})
+    except DatabaseNotConfiguredError:
+        pass
 
     return {"image_url": image_url, "activity_id": payload.activity_id}

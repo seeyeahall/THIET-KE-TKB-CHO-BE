@@ -42,17 +42,17 @@ async def get_current_user(
     try:
         if jwt_secret:
             payload = jwt.decode(token, jwt_secret, algorithms=["HS256"], audience="authenticated")
+            user_id: str | None = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token claims",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return CurrentUser(user_id=user_id)
         else:
-            payload = jwt.decode(token, options={"verify_signature": False})
-            
-        user_id: str | None = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token claims",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return CurrentUser(user_id=user_id)
+            # Dev mode: accept any token and return local-dev-user
+            return CurrentUser(user_id="local-dev-user")
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

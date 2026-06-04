@@ -36,8 +36,8 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 setup_exception_handlers(app)
 
 # Middleware (order matters: outer first)
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
+# app.add_middleware(RequestLoggingMiddleware)
+# app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

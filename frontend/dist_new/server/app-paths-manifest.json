@@ -1,7 +1,13 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js",
   "/select-child/page": "app/select-child/page.js",
+  "/home/page": "app/home/page.js",
   "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
   "/schedule/page": "app/schedule/page.js",
-  "/home/page": "app/home/page.js"
+  "/chat/page": "app/chat/page.js",
+  "/activities/page": "app/activities/page.js",
+  "/login/page": "app/login/page.js",
+  "/register/page": "app/register/page.js",
+  "/parent/page": "app/parent/page.js"
 }

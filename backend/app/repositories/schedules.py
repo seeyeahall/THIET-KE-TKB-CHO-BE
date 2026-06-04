@@ -20,13 +20,11 @@ class SchedulesRepository(BaseRepository):
         data = result.data or []
         return data[0] if data else None
 
-    def list_by_child(self, child_id: UUID | str, limit: int = 10) -> list[dict[str, Any]]:
-        q = (
-            self._base_query()
-            .eq("child_id", str(child_id))
-            .order("week_start_date", desc=True)
-            .limit(limit)
-        )
+    def list_by_child(self, child_id: UUID | str, month: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        q = self._base_query().eq("child_id", str(child_id))
+        if month:
+            q = q.gte("week_start_date", f"{month}-01").lte("week_start_date", f"{month}-31")
+        q = q.order("week_start_date", desc=True).limit(limit)
         result = q.execute()
         return result.data or []
 

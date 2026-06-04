@@ -119,16 +119,17 @@ export const api = {
 
   // AI
   listProviders: () => fetchJson<AIProvider[]>('/api/v1/ai/providers'),
-  chat: (childId: string, message: string) =>
-    fetchJson<{ reply: string; provider: string }>('/api/v1/ai/chat', {
-      method: 'POST',
-      body: JSON.stringify({ child_id: childId, message }),
-    }),
+  /** Gửi tin nhắn chat đến AI Naruto */
   sendChat: (childId: string, message: string) =>
     fetchJson<{ reply: string; provider: string }>('/api/v1/ai/chat', {
       method: 'POST',
       body: JSON.stringify({ child_id: childId, message }),
     }),
+  /** Load lịch sử chat từ DB để hiển thị khi mở trang chat */
+  getChatHistory: (childId: string, limit = 20) =>
+    fetchJson<Array<{ id: string; role: 'user' | 'assistant'; message: string; created_at: string }>>(
+      `/api/v1/ai/chat-history?child_id=${childId}&limit=${limit}`
+    ),
   generateSchedule: (childId: string, weekStartDate: string, theme?: string) =>
     fetchJson<{ schedule: { items: Array<{ day_of_week: number; start_time: string; duration_minutes: number; activity_title: string; activity_theme: string; notes?: string }> } }>('/api/v1/ai/generate-schedule', {
       method: 'POST',

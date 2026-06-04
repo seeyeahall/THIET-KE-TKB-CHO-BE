@@ -1,15 +1,30 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Sparkles, User, Mic, Volume2, VolumeX } from 'lucide-react';
+import { Send, Mic, Volume2, VolumeX, RefreshCw, Zap } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 
 interface Message {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
+  created_at?: string;
 }
+
+const QUICK_QUESTIONS = [
+  '🌟 Hôm nay mình làm gì vui?',
+  '🎯 Gợi ý hoạt động cho mình',
+  '📅 Đặt lịch giúp mình nhé!',
+  '🍥 Naruto kể chuyện đi!',
+];
+
+const NARUTO_AVATAR = () => (
+  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-yellow-400 flex items-center justify-center text-lg flex-shrink-0 shadow-md">
+    🍥
+  </div>
+);
 
 export default function ChatPage() {
   const router = useRouter();
@@ -20,6 +35,7 @@ export default function ChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,46 +44,71 @@ export default function ChatPage() {
     }
   }, []);
 
+  // Load lịch sử chat từ DB khi mở trang
   useEffect(() => {
     if (!selectedChild) {
       router.push('/select-child');
       return;
     }
-    // Welcome message
-    setMessages([
-      {
-        role: 'assistant',
-        content: `Chào ${selectedChild.name}! Hôm nay con muốn tìm hiểu điều gì? 🔬🎨🌱`,
-      },
-    ]);
+
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const history = await api.getChatHistory(selectedChild.id, 20);
+        if (history.length > 0) {
+          setMessages(history.map(h => ({
+            id: h.id,
+            role: h.role,
+            content: h.message,
+            created_at: h.created_at,
+          })));
+        } else {
+          // Tin nhắn chào đầu tiên từ Naruto
+          setMessages([{
+            role: 'assistant',
+            content: `Dattebayo! 🍥 Chào ${selectedChild.name}! Mình là Naruto — ninja mạnh nhất và là bạn đồng hành của bạn! Hôm nay chúng ta cùng lên kế hoạch phiêu lưu gì nào? ⚡`,
+          }]);
+        }
+      } catch {
+        // Fallback khi backend offline hoặc chưa có history
+        setMessages([{
+          role: 'assistant',
+          content: `Dattebayo! 🍥 Chào ${selectedChild.name}! Mình là Naruto — ninja bạn đồng hành của bạn! Hôm nay bạn muốn làm gì nào? ⚡`,
+        }]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    loadHistory();
   }, [selectedChild, router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const speak = (text: string) => {
-    if (isMuted || !window.speechSynthesis) return;
+  const speak = useCallback((text: string) => {
+    if (isMuted || typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'vi-VN';
-    utterance.rate = 1.0;
+    utterance.rate = 1.05;
+    utterance.pitch = 1.1;
     window.speechSynthesis.speak(utterance);
-  };
+  }, [isMuted]);
 
   const startListening = () => {
     // @ts-ignore
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói!");
+      alert('Trình duyệt của bạn không hỗ trợ nhận diện giọng nói!');
       return;
     }
     const recognition = new SpeechRecognition();
     recognition.lang = 'vi-VN';
     recognition.interimResults = false;
-    
-    // Watchdog timer to prevent hanging in "listening" state on some test/headless environments
+
     let safetyTimer = setTimeout(() => {
-      console.warn('Speech recognition safety timeout triggered.');
       recognition.stop();
       setIsListening(false);
     }, 8000);
@@ -84,7 +125,7 @@ export default function ChatPage() {
     recognition.onresult = (event: any) => {
       clearTimeout(safetyTimer);
       const transcript = event.results[0][0].transcript;
-      setInput((prev) => (prev ? prev + ' ' + transcript : transcript));
+      setInput(prev => (prev ? prev + ' ' + transcript : transcript));
     };
 
     recognition.onend = () => {
@@ -95,36 +136,30 @@ export default function ChatPage() {
     recognition.onerror = (e: any) => {
       clearTimeout(safetyTimer);
       console.error('Speech recognition error', e);
-      alert('Lỗi nhận diện giọng nói: ' + (e.error || 'không rõ') + '. Vui lòng kiểm tra quyền micro hoặc kết nối HTTPS.');
       setIsListening(false);
     };
 
     try {
       recognition.start();
-    } catch (err) {
-      clearTimeout(safetyTimer);
+    } catch {
       setIsListening(false);
     }
   };
 
-  const send = async () => {
-    if (!input.trim() || !selectedChild || sending) return;
-    const userMsg = input.trim();
+  const send = async (messageText?: string) => {
+    const userMsg = (messageText ?? input).trim();
+    if (!userMsg || !selectedChild || sending) return;
     setInput('');
-    setMessages((m) => [...m, { role: 'user', content: userMsg }]);
+    setMessages(m => [...m, { role: 'user', content: userMsg }]);
     setSending(true);
 
     try {
       const result = await api.sendChat(selectedChild.id, userMsg);
-      setMessages((m) => [...m, { role: 'assistant', content: result.reply }]);
+      setMessages(m => [...m, { role: 'assistant', content: result.reply }]);
       speak(result.reply);
     } catch {
-      const errorMsg = 'Xin lỗi, AI đang nghỉ tí. Con thử lại sau nhé! 😅';
-      setMessages((m) => [
-        ...m,
-        { role: 'assistant', content: errorMsg },
-      ]);
-      speak(errorMsg);
+      const errorMsg = `Xin lỗi ${selectedChild.name}, mình đang nạp chakra lại! 😅 Thử lại sau nhé!`;
+      setMessages(m => [...m, { role: 'assistant', content: errorMsg }]);
     } finally {
       setSending(false);
     }
@@ -134,112 +169,134 @@ export default function ChatPage() {
 
   return (
     <main
-      className="flex flex-col"
+      className="flex flex-col bg-gradient-to-b from-orange-50 to-yellow-50"
       style={{ height: 'calc(100dvh - var(--nav-height, 4rem) - env(safe-area-inset-bottom, 0px))' }}
     >
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-3">
-        <div className="bg-kid-orange text-white w-10 h-10 rounded-full flex items-center justify-center">
-          <Sparkles size={20} />
+      {/* Header — Naruto style */}
+      <div className="bg-gradient-to-r from-orange-500 to-yellow-400 px-5 py-4 flex items-center gap-3 shadow-lg">
+        <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-2xl shadow-inner border-2 border-white/40">
+          🍥
         </div>
         <div className="flex-1">
-          <h2 className="font-black text-gray-800">AI Companion</h2>
-          <p className="text-xs font-bold text-gray-400">Luôn sẵn sàng trò chuyện</p>
+          <h2 className="font-black text-white text-base leading-tight">Naruto</h2>
+          <p className="text-xs font-bold text-orange-100">Ninja bạn đồng hành của {selectedChild.name} ⚡</p>
         </div>
-        <button
-          onClick={() => {
-            if (!isMuted) window.speechSynthesis?.cancel();
-            setIsMuted(!isMuted);
-          }}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-            isMuted ? 'bg-gray-100 text-gray-400' : 'bg-kid-green/10 text-kid-green'
-          }`}
-        >
-          {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (!isMuted) window.speechSynthesis?.cancel();
+              setIsMuted(!isMuted);
+            }}
+            className="w-9 h-9 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+            title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Questions */}
+      <div className="flex gap-2 px-4 py-2.5 overflow-x-auto scrollbar-hide flex-shrink-0">
+        {QUICK_QUESTIONS.map(q => (
+          <button
+            key={q}
+            onClick={() => send(q.replace(/^[^\s]+\s/, ''))}
+            disabled={sending}
+            className="flex-shrink-0 text-xs font-bold px-3 py-1.5 bg-white rounded-full border-2 border-orange-200 text-orange-600 hover:border-orange-400 hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+          >
+            {q}
+          </button>
+        ))}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.role === 'user'
-                  ? 'bg-kid-yellow text-kid-orange'
-                  : 'bg-kid-blue text-white'
-              }`}
-            >
-              {msg.role === 'user' ? (
-                <User size={14} />
-              ) : (
-                <Sparkles size={14} />
-              )}
-            </div>
-            <div
-              className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm font-bold leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-kid-yellow text-kid-orange rounded-br-md'
-                  : 'bg-gray-100 text-gray-700 rounded-bl-md'
-              }`}
-            >
-              {msg.content}
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+        {historyLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="flex gap-1 items-center text-orange-400">
+              <RefreshCw size={16} className="animate-spin" />
+              <span className="text-sm font-bold">Đang tải lịch sử...</span>
             </div>
           </div>
-        ))}
-        {sending && (
-          <div className="flex gap-2">
-            <div className="w-8 h-8 rounded-full bg-kid-blue text-white flex items-center justify-center">
-              <Sparkles size={14} />
+        ) : (
+          messages.map((msg, i) => (
+            <div
+              key={msg.id ?? i}
+              className={`flex gap-2 items-end ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            >
+              {msg.role === 'assistant' && <NARUTO_AVATAR />}
+              {msg.role === 'user' && (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0 shadow-md"
+                  style={{ background: `hsl(${selectedChild.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0) % 360}, 70%, 60%)` }}
+                >
+                  {selectedChild.name[0].toUpperCase()}
+                </div>
+              )}
+              <div
+                className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm font-bold leading-relaxed shadow-sm ${
+                  msg.role === 'user'
+                    ? 'bg-gradient-to-br from-orange-400 to-yellow-400 text-white rounded-br-sm'
+                    : 'bg-white text-gray-700 rounded-bl-sm border border-orange-100'
+                }`}
+              >
+                {msg.content}
+              </div>
             </div>
-            <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          ))
+        )}
+
+        {/* Typing indicator */}
+        {sending && (
+          <div className="flex gap-2 items-end">
+            <NARUTO_AVATAR />
+            <div className="bg-white border border-orange-100 px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
+              <div className="flex gap-1.5 items-center">
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="text-xs text-orange-400 font-bold ml-1">Naruto đang nghĩ...</span>
               </div>
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
+        <div ref={bottomRef} className="h-2" />
       </div>
 
       {/* Input */}
-      <div className="bg-white border-t border-gray-100 p-4 flex-shrink-0">
+      <div className="bg-white border-t border-orange-100 px-4 py-3 flex-shrink-0">
         <div className="max-w-lg mx-auto">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={startListening}
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 ${
                 isListening
-                  ? 'bg-red-500 text-white animate-pulse'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  ? 'bg-red-500 text-white animate-pulse scale-110 shadow-lg'
+                  : 'bg-orange-100 text-orange-500 hover:bg-orange-200'
               }`}
+              title="Nói chuyện với Naruto"
             >
               <Mic size={18} />
             </button>
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && send()}
-              placeholder="Nhắn tin cho AI..."
-              className="flex-1 bg-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-kid-yellow/50 min-w-0"
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              placeholder={`Nhắn tin cho Naruto...`}
+              className="flex-1 bg-orange-50 rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 placeholder-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-300/60 min-w-0 border border-orange-100"
             />
             <button
-              onClick={send}
+              onClick={() => send()}
               disabled={sending || !input.trim()}
-              className="bg-kid-orange text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
+              className="bg-gradient-to-br from-orange-500 to-yellow-400 text-white w-11 h-11 rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 flex-shrink-0 shadow-md"
             >
-              <Send size={18} />
+              {sending ? <Zap size={18} className="animate-pulse" /> : <Send size={18} />}
             </button>
           </div>
           {!isSecure && (
-            <p className="text-[10px] text-red-500 font-bold text-center mt-1">
-              ⚠️ Ghi âm giọng nói yêu cầu kết nối bảo mật HTTPS (hoặc localhost)
+            <p className="text-[10px] text-orange-400 font-bold text-center mt-1.5">
+              ⚠️ Ghi âm giọng nói yêu cầu kết nối HTTPS (hoặc localhost)
             </p>
           )}
         </div>

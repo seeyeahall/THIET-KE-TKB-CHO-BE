@@ -4,7 +4,7 @@ push_and_run.py — Menu khởi động Kid Adventure Planner
 Chạy: python push_and_run.py  (hoặc double-click push_and_run.bat)
 
 Menu:
-    [1] 🖥️  Chạy LOCAL (dev, localhost:3000 + :8001)
+    [1] 🖥️  Chạy LOCAL (dev, localhost:3005 + :8001)
     [2] ☁️  Push lên Cloud (git + Fly.io deploy)
     [3] 🧪  Chỉ test backend API (không mở frontend)
     [4] ❌  Thoát
@@ -33,7 +33,7 @@ def banner():
     print(cyan("╔══════════════════════════════════════════════╗"))
     print(cyan("║") + bold("  🚀  KID ADVENTURE PLANNER                 ") + cyan("║"))
     print(cyan("╠══════════════════════════════════════════════╣"))
-    print(cyan("║") + "  [1] 🖥️   Chay LOCAL  (localhost:3000)       " + cyan("║"))
+    print(cyan("║") + "  [1] 🖥️   Chay LOCAL  (localhost:3005)       " + cyan("║"))
     print(cyan("║") + "  [2] ☁️   Push len Cloud (Fly.io + Cloudflare)" + cyan("║"))
     print(cyan("║") + "  [3] 🧪   Chi test Backend API                " + cyan("║"))
     print(cyan("║") + "  [4] ❌   Thoat                               " + cyan("║"))

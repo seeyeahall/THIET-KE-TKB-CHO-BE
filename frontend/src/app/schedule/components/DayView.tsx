@@ -74,8 +74,10 @@ export default function DayView({
         const schedules = await api.listSchedules(childId);
         if (schedules.length > 0 && schedules[0].items) {
           const d = parseLocalDate(dateStr);
-          const dow = d.getDay(); // 0=CN, 1=T2...
+          // day_of_week: 0=T2(Mon)...6=CN(Sun) — weekday convention (đồng bộ backend)
+          const dow = (d.getDay() + 6) % 7;
           const filtered = schedules[0].items.filter(i => i.day_of_week === dow);
+
           setItems(filtered);
         } else {
           setItems([]);

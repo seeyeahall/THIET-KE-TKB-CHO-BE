@@ -1,8 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Mic, MicOff, Bot, Check, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/lib/api';
 import { getDayLabelFull, formatShortDate, parseLocalDate, themeEmoji } from '@/lib/utils/scheduleProgress';
 import type { Activity, ScheduleItem } from '@/lib/types';
@@ -51,6 +65,7 @@ export default function DayDesignModal({
   );
   const [pool, setPool] = useState<Activity[]>([]);
   const [dragItem, setDragItem] = useState<Activity | null>(null);
+  const [dragActiveItem, setDragActiveItem] = useState<DraftItem | null>(null);
   const [dragSlot, setDragSlot] = useState<string | null>(null);
 
   // Text input
@@ -81,22 +96,59 @@ export default function DayDesignModal({
     }).catch(() => setPool(DEMO_POOL));
   }, []);
 
-  // ── DnD từ pool ──────────────────────────────────────────────────────────────
-  const handlePoolDragStart = (activity: Activity) => setDragItem(activity);
+  // ── @dnd-kit sensors — hỗ trợ cả mouse lẫn touch mobile
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }, // chết để bé scroll thoải mái
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 }, // hold 250ms để DnD, tách với scroll
+    })
+  );
 
-  const handleSlotDrop = (slot: string) => {
-    if (!dragItem) return;
-    addDraftItem({
-      activity_title: dragItem.title,
-      activity_theme: dragItem.theme,
-      start_time: slot,
-      duration_minutes: dragItem.duration_minutes ?? DEFAULT_DURATION,
-      activity_id: dragItem.id,
-      isNew: true,
-    });
+  // ── DnD handlers — dùng @dnd-kit events
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const { active } = event;
+    const activeId = String(active.id);
+    if (activeId.startsWith('pool-')) {
+      const activityId = activeId.replace('pool-', '');
+      const act = pool.find(a => a.id === activityId);
+      if (act) setDragItem(act);
+    } else {
+      const item = draftItems.find(i => i.id === activeId);
+      if (item) setDragActiveItem(item);
+    }
+  }, [pool, draftItems]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { over } = event;
+    if (over) {
+      const overId = String(over.id);
+      if (overId.startsWith('slot-')) {
+        const slot = overId.replace('slot-', '');
+        if (dragItem) {
+          addDraftItem({
+            activity_title: dragItem.title,
+            activity_theme: dragItem.theme,
+            start_time: slot,
+            duration_minutes: dragItem.duration_minutes ?? DEFAULT_DURATION,
+            activity_id: dragItem.id,
+            isNew: true,
+          });
+        } else if (dragActiveItem) {
+          setDraftItems(prev => prev.map(item => {
+            if (item.id === dragActiveItem.id) {
+              return { ...item, start_time: slot, isNew: true };
+            }
+            return item;
+          }));
+        }
+      }
+    }
     setDragItem(null);
+    setDragActiveItem(null);
     setDragSlot(null);
-  };
+  }, [dragItem, dragActiveItem]);
 
   // ── Thêm item ────────────────────────────────────────────────────────────────
   const addDraftItem = (item: Omit<DraftItem, 'id'>) => {
@@ -129,7 +181,7 @@ export default function DayDesignModal({
     try {
       const dayLabel = getDayLabelFull(dateStr);
       const prompt = `Bé ${childName}, ngày ${dayLabel} (${formatShortDate(dateStr)}). Yêu cầu: ${aiInput}. Hãy gợi ý danh sách hoạt động với giờ cụ thể cho ngày này dưới dạng JSON: [{title, theme, start_time (HH:mm), duration_minutes}]`;
-      const result = await api.chat(childId, prompt);
+      const result = await api.sendChat(childId, prompt);
       // Parse JSON từ reply nếu có
       const jsonMatch = result.reply.match(/\[[\s\S]*?\]/);
       if (jsonMatch) {
@@ -206,7 +258,7 @@ export default function DayDesignModal({
         const prompt = role === 'parent'
           ? `Phụ huynh ra lệnh: "${text}". Tạo lịch hoạt động cho bé ${childName} ngày ${formatShortDate(dateStr)} dạng JSON: [{title, theme, start_time, duration_minutes}]`
           : `Bé ${childName} nói: "${text}". Gợi ý hoạt động cho ngày ${formatShortDate(dateStr)} dạng JSON: [{title, theme, start_time, duration_minutes}]`;
-        const result = await api.chat(childId, prompt);
+        const result = await api.sendChat(childId, prompt);
         const jsonMatch = result.reply.match(/\[[\s\S]*?\]/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
@@ -299,8 +351,9 @@ export default function DayDesignModal({
         scheduleId = newSched.id;
       }
 
-      // day_of_week của ngày được chọn
-      const dow = parseLocalDate(dateStr).getDay(); // 0=CN,1=T2...
+      // day_of_week: 0=T2(Mon)...6=CN(Sun) — weekday convention
+      // JS getDay(): 0=CN, 1=T2... → convert: (getDay()+6)%7
+      const dow = (parseLocalDate(dateStr).getDay() + 6) % 7;
 
       // Thêm từng item mới
       for (const item of draftItems.filter(i => i.isNew)) {
@@ -326,7 +379,26 @@ export default function DayDesignModal({
       onClose();
     } catch (e) {
       console.error('Save error:', e);
-      // Vẫn đóng modal, data ở local state
+      // Save unsaved draft items to localStorage for syncing later
+      const newItems = draftItems.filter(i => i.isNew);
+      if (newItems.length > 0) {
+        try {
+          const offlineKey = `offline_drafts_${childId}`;
+          const existingOffline = JSON.parse(localStorage.getItem(offlineKey) || '[]');
+          const toSave = newItems.map(item => ({
+            activity_title: item.activity_title,
+            activity_theme: item.activity_theme,
+            start_time: item.start_time,
+            duration_minutes: item.duration_minutes,
+            activity_id: item.activity_id,
+            dateStr,
+          }));
+          localStorage.setItem(offlineKey, JSON.stringify([...existingOffline, ...toSave]));
+          alert('Đã lưu lịch tạm thời ở chế độ ngoại tuyến! Lịch sẽ tự động đồng bộ khi bạn có mạng trở lại.');
+        } catch (storageErr) {
+          console.error('Failed to save to localStorage:', storageErr);
+        }
+      }
       onSaved();
       onClose();
     } finally {
@@ -341,10 +413,17 @@ export default function DayDesignModal({
   
   if (!mounted) return null;
 
+  const handleClose = () => {
+    if (draftItems.length > 0) {
+      if (!confirm('Bạn có muốn bỏ qua lịch đã thiết kế không? Lịch chưa được lưu sẽ bị mất.')) return;
+    }
+    onClose();
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col justify-end">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Bottom Sheet */}
       <div className="relative bg-white rounded-t-[2rem] shadow-2xl h-[90dvh] flex flex-col animate-slide-up">
@@ -363,7 +442,7 @@ export default function DayDesignModal({
               {getDayLabelFull(dateStr)}, {formatShortDate(dateStr)}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100">
+          <button onClick={handleClose} className="p-2 rounded-xl hover:bg-gray-100">
             <X size={20} />
           </button>
         </div>
@@ -452,73 +531,67 @@ export default function DayDesignModal({
             )}
           </div>
 
-          {/* ── ActivityPool ─────────────────────────────────── */}
-          <div>
-            <p className="text-xs font-black text-gray-500 mb-2">
-              📦 Kho hoạt động — kéo thả vào lịch
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {pool.map(act => (
-                <div
-                  key={act.id}
-                  draggable
-                  onDragStart={() => handlePoolDragStart(act)}
-                  className="flex-shrink-0 bg-white border-2 border-gray-100 rounded-xl p-2.5 cursor-move hover:border-kid-yellow hover:shadow-md transition-all w-24 text-center select-none"
-                >
-                  <div className="text-xl mb-1">{themeEmoji(act.theme)}</div>
-                  <div className="text-[10px] font-bold text-gray-700 truncate">{act.title}</div>
-                  <div className="text-[9px] text-gray-400">{act.duration_minutes}p</div>
-                </div>
-              ))}
+          {/* ── ActivityPool ─────────────────────────────────────── */}
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div>
+              <p className="text-xs font-black text-gray-500 mb-2">
+                📦 Kho hoạt động — kéo thả vào lịch
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {pool.map(act => (
+                  <DraggablePoolItem key={act.id} activity={act} />
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* ── Timeline với drop zones ───────────────────────── */}
-          <div>
-            <p className="text-xs font-black text-gray-500 mb-2">⏰ Timeline ngày</p>
-            <div className="space-y-1 max-h-72 overflow-y-auto border border-gray-100 rounded-2xl p-3 bg-gray-50 scrollbar-hide">
-              {/* Items đã thêm */}
-              {itemsSorted.length > 0 && (
-                <div className="space-y-1 mb-2">
-                  {itemsSorted.map(item => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-gray-200 shadow-sm animate-fade-in-up"
-                    >
-                      <span className="text-base">{themeEmoji(item.activity_theme)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-700 truncate">{item.activity_title}</p>
-                        <p className="text-[10px] text-gray-400">{item.start_time} • {item.duration_minutes}p</p>
-                      </div>
-                      <button onClick={() => removeDraft(item.id)} className="text-gray-300 hover:text-red-400 p-0.5 rounded">
-                        <X size={14} />
-                      </button>
+            {/* ── Timeline với drop zones ─────────────────────────── */}
+            <div>
+              <p className="text-xs font-black text-gray-500 mb-2">⏰ Timeline ngày</p>
+              <div className="space-y-1 max-h-72 overflow-y-auto border border-gray-100 rounded-2xl p-3 bg-gray-50 scrollbar-hide">
+                {/* Items đã thêm */}
+                {itemsSorted.length > 0 && (
+                  <SortableContext items={itemsSorted.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1 mb-2">
+                      {itemsSorted.map(item => (
+                        <SortableDraftItem key={item.id} item={item} onRemove={removeDraft} />
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </SortableContext>
+                )}
 
-              {/* Drop zones — tất cả slots trống (không giới hạn) */}
-              {TIME_SLOTS.filter(slot =>
-                !itemsSorted.some(i => i.start_time === slot)
-              ).map(slot => (
-                <div
-                  key={slot}
-                  onDragOver={e => { e.preventDefault(); setDragSlot(slot); }}
-                  onDragLeave={() => setDragSlot(null)}
-                  onDrop={() => handleSlotDrop(slot)}
-                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold border-2 border-dashed transition-all ${
-                    dragSlot === slot
-                      ? 'border-kid-orange bg-orange-50 text-kid-orange scale-[1.02]'
-                      : 'border-gray-200 text-gray-300 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-gray-300 w-10">{slot}</span>
-                  <span>{dragSlot === slot ? '📌 Thả vào đây' : 'Trống'}</span>
-                </div>
-              ))}
+                {/* Drop zones — @dnd-kit DroppableTimeSlot (touch-enabled) */}
+                {TIME_SLOTS.filter(slot =>
+                  !itemsSorted.some(i => i.start_time === slot)
+                ).map(slot => (
+                  <DroppableTimeSlot key={slot} slot={slot} isDragging={!!dragItem || !!dragActiveItem} />
+                ))}
+              </div>
             </div>
-          </div>
+
+            {/* DragOverlay — preview đẹp khi đang kéo */}
+            <DragOverlay>
+              {dragItem ? (
+                <div className="flex-shrink-0 bg-white border-2 border-kid-orange rounded-xl p-2.5 shadow-xl w-24 text-center select-none opacity-95 rotate-2">
+                  <div className="text-xl mb-1">{themeEmoji(dragItem.theme)}</div>
+                  <div className="text-[10px] font-bold text-gray-700 truncate">{dragItem.title}</div>
+                  <div className="text-[9px] text-orange-400 font-bold">thả vào ô giờ!</div>
+                </div>
+              ) : dragActiveItem ? (
+                <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border-2 border-kid-orange shadow-xl opacity-95 rotate-2 w-64">
+                  <GripVertical size={16} className="text-gray-400" />
+                  <span className="text-base">{themeEmoji(dragActiveItem.activity_theme)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-700 truncate">{dragActiveItem.activity_title}</p>
+                    <p className="text-[10px] text-gray-400">{dragActiveItem.start_time} • {dragActiveItem.duration_minutes}p</p>
+                  </div>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
 
 
           {/* ── Nhập text nhanh ───────────────────────────────── */}
@@ -596,3 +669,87 @@ const DEMO_POOL: Activity[] = [
   { id:'p5', title:'Làm toán', slug:'lam-toan', theme:'Học tập', duration_minutes:25, difficulty:'Dễ', requires_parent:false, status:'published' },
   { id:'p6', title:'Khiêu vũ', slug:'khieu-vu', theme:'Âm nhạc', duration_minutes:20, difficulty:'Dễ', requires_parent:false, status:'published' },
 ];
+
+// ── @dnd-kit: ActivityPool draggable item ─────────────────────────────────────
+function DraggablePoolItem({ activity }: { activity: Activity }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pool-${activity.id}`,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`flex-shrink-0 bg-white border-2 rounded-xl p-2.5 cursor-grab active:cursor-grabbing w-24 text-center select-none transition-all touch-none ${
+        isDragging
+          ? 'opacity-40 border-kid-orange scale-95'
+          : 'border-gray-100 hover:border-kid-yellow hover:shadow-md'
+      }`}
+    >
+      <div className="text-xl mb-1">{themeEmoji(activity.theme)}</div>
+      <div className="text-[10px] font-bold text-gray-700 truncate">{activity.title}</div>
+      <div className="text-[9px] text-gray-400">{activity.duration_minutes}p</div>
+    </div>
+  );
+}
+
+// ── @dnd-kit: Timeline droppable slot ────────────────────────────────────────
+function DroppableTimeSlot({ slot, isDragging }: { slot: string; isDragging: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `slot-${slot}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold border-2 border-dashed transition-all ${
+        isOver
+          ? 'border-kid-orange bg-orange-50 text-kid-orange scale-[1.02] shadow-md'
+          : isDragging
+          ? 'border-yellow-200 bg-yellow-50 text-yellow-400'
+          : 'border-gray-200 text-gray-300'
+      }`}
+    >
+      <span className="text-gray-400 w-10 font-mono">{slot}</span>
+      <span>{isOver ? '📌 Thả vào đây!' : isDragging ? '↓ Kéo đến đây' : 'Trống'}</span>
+    </div>
+  );
+}
+
+// ── @dnd-kit: Timeline sortable item ──────────────────────────────────────────
+function SortableDraftItem({ item, onRemove }: { item: DraftItem; onRemove: (id: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-gray-200 shadow-sm animate-fade-in-up"
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+      >
+        <GripVertical size={16} />
+      </div>
+      <span className="text-base flex-shrink-0">{themeEmoji(item.activity_theme)}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-gray-700 truncate">{item.activity_title}</p>
+        <p className="text-[10px] text-gray-400">{item.start_time} • {item.duration_minutes}p</p>
+      </div>
+      <button
+        onClick={() => onRemove(item.id)}
+        className="text-gray-300 hover:text-red-400 p-0.5 rounded flex-shrink-0"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+

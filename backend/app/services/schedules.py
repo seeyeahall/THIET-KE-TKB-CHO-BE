@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -18,8 +18,23 @@ class SchedulesService:
         schedule["items"] = items
         return schedule
 
-    def list_schedules(self, child_id: UUID | str, limit: int = 10) -> list[dict[str, Any]]:
-        return self.repo.list_by_child(child_id, limit)
+    def list_schedules(self, child_id: UUID | str, month: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        return self.repo.list_by_child(child_id, month=month, limit=limit)
+
+    def get_schedule_items_by_date(self, child_id: UUID | str, date_str: str) -> list[dict[str, Any]]:
+        # date_str: YYYY-MM-DD
+        target_date = date.fromisoformat(date_str)
+        # week starts on Monday
+        week_start = target_date - timedelta(days=target_date.weekday())
+        day_of_week = target_date.weekday()
+
+        schedule = self.repo.get_current_by_child(child_id, week_start)
+        if not schedule:
+            return []
+        
+        items = self.items_repo.list_by_schedule(schedule["id"])
+        # filter out items not matching day_of_week
+        return [item for item in items if item.get("day_of_week") == day_of_week]
 
     def create_schedule(self, data: dict[str, Any]) -> dict[str, Any]:
         items_data = data.pop("items", [])

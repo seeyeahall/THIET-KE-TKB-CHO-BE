@@ -5,16 +5,20 @@ import { useRouter } from 'next/navigation';
 import { Search, Clock, Flame, BookOpen, Palette, TreePine, Dumbbell, Sparkles } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { themeEmoji } from '@/lib/utils/scheduleProgress';
 import SkeletonCard from '@/components/SkeletonCard';
 import type { Activity } from '@/lib/types';
 
-const CATEGORIES = [
-  { id: 'all', label: 'Tất cả', icon: Flame },
-  { id: 'Học tập', label: 'Học tập', icon: BookOpen },
-  { id: 'Nghệ thuật', label: 'Nghệ thuật', icon: Palette },
-  { id: 'Thiên nhiên', label: 'Thiên nhiên', icon: TreePine },
-  { id: 'Vận động', label: 'Vận động', icon: Dumbbell },
-];
+function getThemeGradient(theme?: string): string {
+  if (!theme) return 'from-orange-100 to-yellow-100';
+  if (theme === 'Học tập') return 'from-blue-100 to-indigo-200';
+  if (theme === 'Nghệ thuật') return 'from-pink-100 to-purple-200';
+  if (theme === 'Vận động') return 'from-green-100 to-emerald-200';
+  if (theme === 'Thiên nhiên') return 'from-teal-100 to-green-200';
+  if (theme === 'Âm nhạc') return 'from-yellow-100 to-amber-200';
+  if (theme === 'Khoa học') return 'from-purple-100 to-blue-200';
+  return 'from-orange-100 to-yellow-200';
+}
 
 export default function ActivitiesPage() {
   const router = useRouter();
@@ -24,6 +28,20 @@ export default function ActivitiesPage() {
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+
+  // Lấy danh sách category từ activities
+  const uniqueThemes = Array.from(new Set(activities.map(a => a.theme).filter(Boolean)));
+  const categories = [
+    { id: 'all', label: 'Tất cả', icon: Flame },
+    ...uniqueThemes.map(theme => {
+      let icon = Sparkles;
+      if (theme === 'Học tập') icon = BookOpen;
+      else if (theme === 'Nghệ thuật') icon = Palette;
+      else if (theme === 'Thiên nhiên') icon = TreePine;
+      else if (theme === 'Vận động') icon = Dumbbell;
+      return { id: theme!, label: theme!, icon };
+    })
+  ];
 
   useEffect(() => {
     if (!selectedChild) {
@@ -82,7 +100,7 @@ export default function ActivitiesPage() {
   if (!selectedChild) return null;
 
   return (
-    <main className="min-h-[100dvh] p-6 pb-6">
+    <main className="min-h-[100dvh] p-6 pb-nav">
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <h2 className="text-2xl font-black text-kid-orange mb-6">
@@ -103,7 +121,7 @@ export default function ActivitiesPage() {
 
         {/* Category Filter */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const Icon = cat.icon;
             const active = category === cat.id;
             return (
@@ -138,7 +156,7 @@ export default function ActivitiesPage() {
               key={activity.id}
               className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-kid-yellow hover:shadow-md transition-all"
             >
-              {activity.image_url && (
+              {activity.image_url ? (
                 <div className="mb-3 overflow-hidden rounded-xl">
                   <img
                     src={activity.image_url}
@@ -146,6 +164,13 @@ export default function ActivitiesPage() {
                     className="w-full h-40 object-cover"
                     loading="lazy"
                   />
+                </div>
+              ) : (
+                <div className={`mb-3 h-40 rounded-xl bg-gradient-to-br ${getThemeGradient(activity.theme)} flex flex-col items-center justify-center relative overflow-hidden group shadow-inner border border-white/50`}>
+                  <div className="text-5xl animate-wiggle transform group-hover:scale-110 transition-transform">
+                    {themeEmoji(activity.theme ?? 'Tự chọn')}
+                  </div>
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               )}
               <div className="flex items-start justify-between mb-2">

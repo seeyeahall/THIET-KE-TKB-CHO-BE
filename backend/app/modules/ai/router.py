@@ -116,12 +116,18 @@ async def chat(
     api_key = None
     client_key = request.headers.get("x-gemini-api-key")
     
-    for p in DEFAULT_PROVIDER_CONFIGS:
-        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
-        if key:
-            config = p
-            api_key = key
-            break
+    if client_key:
+        gemini_provider = next((p for p in DEFAULT_PROVIDER_CONFIGS if p.provider_type == "gemini"), None)
+        if gemini_provider:
+            config = gemini_provider
+            api_key = client_key
+    else:
+        for p in DEFAULT_PROVIDER_CONFIGS:
+            key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+            if key:
+                config = p
+                api_key = key
+                break
 
     if config:
         adapter = build_adapter(config, api_key)
@@ -151,6 +157,44 @@ async def chat(
     # Fallback: no provider configured or API error
     reply = _fallback_chat_reply(child, payload.message)
     return {"reply": reply, "provider": "fallback", "model": "rule-based"}
+
+
+@router.get("/chat-history")
+async def get_chat_history(
+    child_id: UUID,
+    limit: int = 20,
+    family: dict = Depends(get_current_family),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, object]]:
+    """Lấy lịch sử chat của bé để frontend hiển thị lại khi mở trang chat."""
+    from app.repositories.children import ChildrenRepository
+    child = ChildrenRepository().get_by_id(child_id)
+    if not child or str(child.get("family_id")) != str(family["id"]):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
+
+    from app.core.database import get_supabase_client, DatabaseNotConfiguredError
+    try:
+        client = get_supabase_client()
+        result = (
+            client.table("chat_history")
+            .select("id, role, message, created_at")
+            .eq("child_id", str(child_id))
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        # Trả về theo thứ tự thời gian tăng dần (cũ nhất trước)
+        return list(reversed(result.data or []))
+    except DatabaseNotConfiguredError:
+        # Dev mode: trả về demo chat history
+        return [
+            {
+                "id": "demo-1",
+                "role": "assistant",
+                "message": "Chào! Mình là Naruto — ninja bạn đồng hành của bạn! 🍥 Hôm nay bạn muốn khám phá gì nào?",
+                "created_at": "2026-01-01T08:00:00Z",
+            }
+        ]
 
 
 @router.post("/generate-schedule")
@@ -222,12 +266,18 @@ Yêu cầu:
     api_key = None
     client_key = request.headers.get("x-gemini-api-key")
     
-    for p in DEFAULT_PROVIDER_CONFIGS:
-        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
-        if key:
-            config = p
-            api_key = key
-            break
+    if client_key:
+        gemini_provider = next((p for p in DEFAULT_PROVIDER_CONFIGS if p.provider_type == "gemini"), None)
+        if gemini_provider:
+            config = gemini_provider
+            api_key = client_key
+    else:
+        for p in DEFAULT_PROVIDER_CONFIGS:
+            key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+            if key:
+                config = p
+                api_key = key
+                break
 
     if config:
         adapter = build_adapter(config, api_key)
@@ -300,12 +350,18 @@ async def generate_image(
     api_key = None
     client_key = request.headers.get("x-gemini-api-key")
     
-    for p in DEFAULT_PROVIDER_CONFIGS:
-        key = client_key if client_key else getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
-        if key:
-            config = p
-            api_key = key
-            break
+    if client_key:
+        gemini_provider = next((p for p in DEFAULT_PROVIDER_CONFIGS if p.provider_type == "gemini"), None)
+        if gemini_provider:
+            config = gemini_provider
+            api_key = client_key
+    else:
+        for p in DEFAULT_PROVIDER_CONFIGS:
+            key = getattr(settings, p.api_key_env.lower(), None) if p.api_key_env else None
+            if key:
+                config = p
+                api_key = key
+                break
 
     image_url = None
     if config:

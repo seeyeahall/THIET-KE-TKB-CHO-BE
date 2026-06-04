@@ -96,7 +96,7 @@ export default function SchedulePage() {
   ];
 
   return (
-    <main className="min-h-[100dvh] bg-gray-50">
+    <main className="min-h-[100dvh] bg-gray-50 pb-nav">
       <div className="max-w-xl mx-auto px-4 pt-6">
 
         {/* ── Header ─────────────────────────────────────────── */}

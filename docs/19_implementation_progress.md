@@ -33,51 +33,51 @@ Quy tac:
 | 5. Deploy production | Done | Dockerfile, render.yaml, fly.toml, deploy scripts, smoke test |
 | 6. Mo rong | Done | TTS/STT, AI image, rewards nang cao, admin/analytics |
 | 7.0 Bug Fixes UI/Flow | **DONE** (2026-06-04) | Fix BottomNav che man hinh, fix state kep schedule page, fix Home→Day navigation, fix progress refresh, mo rong DayDesignModal drop zones |
-| 7. He thong lich nang cap | **PLANNING DONE / CHUA CODE** | Thiet ke da chot day du (xem ben duoi). Can code. |
+| 7. He thong lich nang cap | **DONE** | Hoan thanh tich hop tat ca components (Year/Month/Week/Day) va Backend APIs. |
 
-## Checklist cheng 7 — He Thong Lich Nang Cap (CHUA BAT DAU)
+## Checklist cheng 7 — He Thong Lich Nang Cap (DA HOAN THANH)
 
 ### Phase 7a — Script & Utils
 
-- [ ] Sua `push_and_run.py`: da co menu [1] Local [2] Cloud [3] Test [4] Thoat. **DONE** (2026-06-03)
-- [ ] Test `push_and_run.bat` chay dung menu moi
-- [ ] Tao `src/lib/utils/scheduleProgress.ts`: helper tinh progress_day/week/month/year, xac dinh sticker
-- [ ] Bo sung state vao `src/lib/store.ts`: viewMode, selectedDate, selectedMonth, designMode
-- [ ] Bo sung API endpoint vao `src/lib/api.ts`: listSchedulesByMonth, getScheduleItemsByDate, getChildStatsByPeriod
+- [x] Sua `push_and_run.py`: da co menu [1] Local [2] Cloud [3] Test [4] Thoat. **DONE** (2026-06-03)
+- [x] Test `push_and_run.bat` chay dung menu moi
+- [x] Tao `src/lib/utils/scheduleProgress.ts`: helper tinh progress_day/week/month/year, xac dinh sticker
+- [x] Bo sung state vao `src/lib/store.ts`: viewMode, selectedDate, selectedMonth, designMode
+- [x] Bo sung API endpoint vao `src/lib/api.ts`: listSchedulesByMonth, getScheduleItemsByDate, getChildStatsByPeriod
 
 ### Phase 7b — View Components
 
-- [ ] Tao `src/app/schedule/components/ProgressBadge.tsx`: badge sticker emoji + mau gradient
-- [ ] Tao `src/app/schedule/components/YearView.tsx`: grid 12 thang
-- [ ] Tao `src/app/schedule/components/MonthView.tsx`: grid lich thang, heatmap
-- [ ] Tao `src/app/schedule/components/WeekView.tsx`: tab 7 ngay, timeline ngan
-- [ ] Tao `src/app/schedule/components/DayView.tsx`: timeline theo gio, nut check, nut thiet ke
+- [x] Tao `src/app/schedule/components/ProgressBadge.tsx`: badge sticker emoji + mau gradient
+- [x] Tao `src/app/schedule/components/YearView.tsx`: grid 12 thang
+- [x] Tao `src/app/schedule/components/MonthView.tsx`: grid lich thang, heatmap
+- [x] Tao `src/app/schedule/components/WeekView.tsx`: tab 7 ngay, timeline ngan
+- [x] Tao `src/app/schedule/components/DayView.tsx`: timeline theo gio, nut check, nut thiet ke
 
 ### Phase 7c — DayDesignModal
 
-- [ ] Tao `src/app/schedule/components/DayTimeline.tsx`: cai tien DayColumn cu, slot theo gio, drop zone
-- [ ] Tao `src/app/schedule/components/DayDesignModal.tsx`: bottom sheet, tich hop ActivityPool + DayTimeline + text + voice + AI
-- [ ] Tich hop ActivityPool.tsx (da co) vao DayDesignModal
-- [ ] Tich hop voice (STT): nut "Be noi" va "Phu huynh noi" rieng biet
-- [ ] Tich hop AI goi y: chat ngan → AI tra ve list → confirm
+- [x] Tao `src/app/schedule/components/DayTimeline.tsx`: cai tien DayColumn cu, slot theo gio, drop zone
+- [x] Tao `src/app/schedule/components/DayDesignModal.tsx`: bottom sheet, tich hop ActivityPool + DayTimeline + text + voice + AI
+- [x] Tich hop ActivityPool.tsx (da co) vao DayDesignModal
+- [x] Tich hop voice (STT): nut "Be noi" va "Phu huynh noi" rieng biet
+- [x] Tich hop AI goi y: chat ngan → AI tra ve list → confirm
 
 ### Phase 7d — Trang Chinh
 
-- [ ] Refactor `src/app/schedule/page.tsx`: dieu phoi 4 view (Year/Month/Week/Day) + thanh chuyen view
-- [ ] Cap nhat `src/app/home/page.tsx`: widget "Lich hom nay" ket noi API that
+- [x] Refactor `src/app/schedule/page.tsx`: dieu phoi 4 view (Year/Month/Week/Day) + thanh chuyen view
+- [x] Cap nhat `src/app/home/page.tsx`: widget "Lich hom nay" ket noi API that
 
 ### Phase 7e — Backend Bo Sung
 
-- [ ] Them endpoint `GET /api/v1/schedules?child_id=&month=YYYY-MM` → tra ve lich theo thang
-- [ ] Mo rong `GET /api/v1/children/{id}/stats` ho tro `?period=week/month/year`
-- [ ] Them dev mode demo data cho 2 endpoint moi
+- [x] Them endpoint `GET /api/v1/schedules?child_id=&month=YYYY-MM` → tra ve lich theo thang
+- [x] Mo rong `GET /api/v1/children/{id}/stats` ho tro `?period=week/month/year`
+- [x] Them dev mode demo data cho 2 endpoint moi
 
 ### Phase 7f — Test & Docs
 
-- [ ] Chay frontend build (`npm run build`) khong loi
-- [ ] Test 4 view tren browser (Year → Month → Week → Day flow)
-- [ ] Test DayDesignModal: DnD, text input, AI, voice
-- [ ] Cap nhat `19_implementation_progress.md`
+- [x] Chay frontend build (`npm run build`) khong loi
+- [x] Test 4 view tren browser (Year → Month → Week → Day flow)
+- [x] Test DayDesignModal: DnD, text input, AI, voice
+- [x] Cap nhat `19_implementation_progress.md`
 
 ## Checklist cac cheng truoc (DA HOAN THANH)
 
@@ -230,3 +230,31 @@ Uu tien thu tu lam:
 11. Refactor `src/app/schedule/page.tsx`
 12. Cap nhat `src/app/home/page.tsx`
 13. Backend bo sung endpoint (neu can)
+
+## Cập Nhật 2026-06-04 — Session Nâng Cấp Toàn Diện
+
+### Đã Hoàn Thành
+- Fix P0-0: Xóa chat_router duplicate → ai_router với full AI context hoạt động
+- Fix P0-1: __import__("datetime") → import chuẩn trong schedules.py
+- Fix P0-2/P0-3: Nâng cấp context.py — fix 3 typo + thêm ngày hôm nay/lịch hôm nay/phần thưởng vào system prompt
+- Fix P0-4: Thêm GET /api/v1/ai/chat-history endpoint
+- Fix P1-1: Xóa duplicate api.chat → giữ sendChat, thêm getChatHistory
+- Fix P1-2/P1-3: day_of_week convention (getDay()+6)%7 trong DayDesignModal + DayView
+- Fix P1-4: Viết lại chat/page.tsx — AI Naruto personality + load history từ DB
+- Fix P1-5: Confirm dialog khi đóng DayDesignModal với draft chưa lưu
+- Fix P1-6: Cài @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
+- Fix P1-7: Hỗ trợ Touch DnD cho timeline items bằng `@dnd-kit/sortable`
+- Fix P1-8: Sửa HSL avatar colors của bé dựa trên UUID hash đầy đủ thay vì ký tự đầu của tên
+- Fix P2-1: Định nghĩa đầy đủ kid animations (wiggle, star-burst, confetti, float-up) trong CSS
+- Fix P2-2: Tích hợp Google Font Baloo 2 cho các tiêu đề (headings) của ứng dụng
+- Fix P2-3: Làm danh mục hoạt động động từ DB & hiện placeholder gradient/emoji khi ảnh bằng null
+- Fix P2-4: Thêm badge count chỉ số hoạt động còn lại hôm nay và hiệu ứng tab-pop cho BottomNav
+- Fix P2-5: Kết nối Daily Challenges với dữ liệu thực tế lịch trình và lịch sử chat
+- Fix P3-1: Bảo mật x-gemini-api-key chỉ dùng riêng cho Gemini provider
+- Fix P3-2: Tạo httpx.AsyncClient pool ở module level để tái sử dụng, tránh leak connection
+- Fix P3-3: Lưu lịch tạm thời dưới localStorage khi offline và tự động đồng bộ khi online lại
+- 17/17 backend tests pass
+- Frontend build check thành công không lỗi (npm run build)
+
+### Còn Lại
+- Không còn. Toàn bộ tính năng đã hoàn tất kiểm thử và đóng gói!

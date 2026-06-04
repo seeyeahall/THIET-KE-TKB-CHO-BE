@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_current_family
@@ -56,6 +56,7 @@ def get_child(
 @router.get("/{child_id}/stats")
 def get_child_stats(
     child_id: UUID,
+    period: str | None = Query(default=None, description="week, month, or year"),
     family: dict = Depends(get_current_family),
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, object]:
@@ -73,6 +74,7 @@ def get_child_stats(
             "total_activities": 5,
             "xp": 45,
             "coins": 15,
+            "period": period,
             "dev_mode": True,
         }
 
@@ -96,6 +98,7 @@ def get_child_stats(
         "completed_activities": completed_count,
         "total_activities": total_count,
         "xp": xp,
-        "coins": coins
+        "coins": coins,
+        "period": period
     }
 

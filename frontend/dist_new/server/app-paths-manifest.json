@@ -1,1 +1,7 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/select-child/page": "app/select-child/page.js",
+  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
+  "/schedule/page": "app/schedule/page.js",
+  "/home/page": "app/home/page.js"
+}

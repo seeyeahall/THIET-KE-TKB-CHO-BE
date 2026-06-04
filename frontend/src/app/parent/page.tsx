@@ -121,7 +121,7 @@ export default function ParentPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] p-6 pb-6 bg-gray-50">
+    <main className="min-h-[100dvh] p-6 pb-nav bg-gray-50">
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

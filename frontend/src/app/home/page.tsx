@@ -22,6 +22,7 @@ export default function HomePage() {
   const [stats, setStats] = useState({ xp: 0, coins: 0 });
   const [completing, setCompleting] = useState<string | null>(null);
   const [rewardPop, setRewardPop] = useState(false);
+  const [hasChattedToday, setHasChattedToday] = useState(false);
 
   useEffect(() => {
     if (!selectedChild) { router.push('/select-child'); return; }
@@ -35,7 +36,8 @@ export default function HomePage() {
         api.listSchedules(selectedChild.id).then(scheds => {
           if (scheds.length > 0 && scheds[0].items) {
             const d = parseLocalDate(today);
-            const dow = d.getDay();
+            // day_of_week: 0=T2(Mon)...6=CN(Sun) — weekday convention (đồng bộ backend)
+            const dow = (d.getDay() + 6) % 7;
             setTodayItems(scheds[0].items.filter(i => i.day_of_week === dow).slice(0, 3));
           }
         }).catch(() => {});
@@ -45,15 +47,55 @@ export default function HomePage() {
     api.getChildStats(selectedChild.id)
       .then(s => setStats({ xp: s.xp ?? 0, coins: s.coins ?? 0 }))
       .catch(() => {});
+
+    // Kiểm tra thử thách trò chuyện với AI hôm nay
+    api.getChatHistory(selectedChild.id, 10)
+      .then(history => {
+        const chatted = history.some(
+          h => h.role === 'user' && h.created_at && h.created_at.substring(0, 10) === today
+        );
+        setHasChattedToday(chatted);
+      })
+      .catch(() => setHasChattedToday(false));
   }, [selectedChild, router]);
 
   if (!selectedChild) return null;
 
-  const todayTheme = themes[Math.abs(selectedChild.id.charCodeAt(0)) % themes.length];
+  // Theme hash từ UUID — dùng reduce để phân tán đều trên 360 hue
+  const themeIdx = Math.abs(
+    selectedChild.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0)
+  ) % themes.length;
+  const todayTheme = themes[themeIdx];
   const today = todayStr();
   const dayStatus = getDayStatus(todayItems, today);
   const dominantTheme = getDominantTheme(todayItems);
   const doneCount = todayItems.filter(i => i.status === 'completed' || i.status === 'complete').length;
+
+  const totalToday = todayItems.length;
+  const studyItems = todayItems.filter(i => i.activity?.theme === 'Học tập');
+  const studyCompleted = studyItems.filter(i => i.status === 'completed' || i.status === 'complete').length;
+  const studyTotal = studyItems.length;
+
+  const challengeTasks = [
+    {
+      title: totalToday > 0 ? 'Hoàn thành hoạt động hôm nay' : 'Lên lịch hoạt động cho hôm nay',
+      progress: totalToday > 0 ? doneCount : 0,
+      total: totalToday > 0 ? totalToday : 1,
+      color: 'bg-kid-green',
+    },
+    {
+      title: 'Trò chuyện cùng Naruto',
+      progress: hasChattedToday ? 1 : 0,
+      total: 1,
+      color: 'bg-kid-blue',
+    },
+    {
+      title: studyTotal > 0 ? 'Hoàn thành hoạt động học tập' : 'Hoàn thành ít nhất 1 hoạt động',
+      progress: studyTotal > 0 ? studyCompleted : (doneCount > 0 ? 1 : 0),
+      total: studyTotal > 0 ? studyTotal : 1,
+      color: 'bg-kid-pink',
+    },
+  ];
 
   const handleCompleteItem = async (itemId: string) => {
     if (completing) return;
@@ -70,7 +112,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-[100dvh] p-5 pb-6">
+    <main className="min-h-[100dvh] p-5 pb-nav">
       <div className="max-w-lg mx-auto">
 
         {/* ── Header ─────────────────────────────────────────── */}
@@ -205,11 +247,7 @@ export default function HomePage() {
         {/* ── Thử thách hôm nay ─────────────────────────────── */}
         <h3 className="text-base font-black text-gray-800 mb-3">🎯 Thử thách</h3>
         <div className="space-y-2.5 mb-6">
-          {[
-            { title: 'Hoàn thành 3 hoạt động', progress: doneCount, total: 3, color: 'bg-kid-green' },
-            { title: 'Chat với AI', progress: 0, total: 1, color: 'bg-kid-blue' },
-            { title: 'Học 1 bài mới', progress: 0, total: 1, color: 'bg-kid-pink' },
-          ].map((task, i) => (
+          {challengeTasks.map((task, i) => (
             <div key={i} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-gray-700 text-sm">{task.title}</span>

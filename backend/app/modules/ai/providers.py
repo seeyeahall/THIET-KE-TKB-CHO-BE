@@ -15,11 +15,20 @@ class ProviderConfig:
     capabilities: tuple[str, ...] = ("chat",)
 
 
+_client_pool: dict[str, httpx.AsyncClient] = {}
+
+
+def get_shared_client(provider_type: str) -> httpx.AsyncClient:
+    if provider_type not in _client_pool:
+        _client_pool[provider_type] = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
+    return _client_pool[provider_type]
+
+
 class AIProviderAdapter(ABC):
-    def __init__(self, config: ProviderConfig, api_key: str | None = None) -> None:
+    def __init__(self, config: ProviderConfig, api_key: str | None = None, client: httpx.AsyncClient | None = None) -> None:
         self.config = config
         self.api_key = api_key
-        self.client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
+        self.client = client if client is not None else get_shared_client(config.provider_type)
 
     @abstractmethod
     async def chat(self, messages: list[dict[str, str]], options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -183,6 +192,7 @@ DEFAULT_PROVIDER_CONFIGS: tuple[ProviderConfig, ...] = (
 
 
 def build_adapter(config: ProviderConfig, api_key: str | None = None) -> AIProviderAdapter:
+    client = get_shared_client(config.provider_type)
     if config.provider_type == "gemini":
-        return GeminiAdapter(config, api_key)
-    return OpenAICompatibleAdapter(config, api_key)
+        return GeminiAdapter(config, api_key, client=client)
+    return OpenAICompatibleAdapter(config, api_key, client=client)

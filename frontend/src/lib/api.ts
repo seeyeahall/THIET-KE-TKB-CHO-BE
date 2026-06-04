@@ -376,9 +376,105 @@ export const api = {
     return data as ScheduleItem;
   },
 
-  // ── AI (Edge Functions) ───────────────────────────────────────────────────
-  sendChat: async (childId: string, message: string) => {
-    return callEdgeFunction<{ reply: string; provider: string }>('ai-chat', { child_id: childId, message });
+  // ── AI (Client-side Gemini) ───────────────────────────────────────────────
+  sendChat: async (childId: string, message: string): Promise<{ reply: string; provider: string }> => {
+    const supabase = getSupabaseClient();
+    const geminiKey = getGeminiKey();
+
+    // 1. Get child info
+    const { data: child } = await supabase
+      .from('children')
+      .select('id, name, age, interests, dislikes, parent_notes')
+      .eq('id', childId)
+      .single();
+
+    const childName = child?.name ?? 'bé';
+
+    // 2. Get chat history (last 6 messages)
+    const { data: history } = await supabase
+      .from('chat_history')
+      .select('role, message')
+      .eq('child_id', childId)
+      .order('created_at', { ascending: false })
+      .limit(6);
+
+    const recentHistory = (history ?? []).reverse();
+
+    // 3. Fallback reply function (Uzumaki Naruto)
+    const fallbackReply = (name: string, msg: string): string => {
+      const lower = msg.toLowerCase();
+      if (['chào', 'hello', 'hi', 'hey', 'xin chào'].some(w => lower.includes(w)))
+        return `Dattebayo! 🍥 Chào ${name}! Mình là Naruto — ninja bạn đồng hành của bạn! Hôm nay chúng ta phiêu lưu gì nào? ⚡`;
+      if (['tạm biệt', 'bye', 'bai'].some(w => lower.includes(w)))
+        return `Tạm biệt ${name}! Chúc bạn một ngày vui vẻ và đầy phiêu lưu nhé! Hẹn gặp lại! ⚡`;
+      if (['cảm ơn', 'thank', 'cam on'].some(w => lower.includes(w)))
+        return `Không có gì đâu ${name}! Ninja tụi mình luôn sẵn sàng giúp bạn bè mà. Dattebayo! 🍥`;
+      if (['buồn', 'sad', 'khóc', 'mệt'].some(w => lower.includes(w)))
+        return `${name} ơi, đừng buồn nha! Hít thật sâu và mỉm cười đi. Bạn muốn mình kể chuyện vui không? ⚡`;
+      if (['vui', 'happy', 'thích', 'thú vị'].some(w => lower.includes(w)))
+        return `Tuyệt vời quá ${name}! Mình cũng vui lây rồi đó! Hôm nay bạn làm gì vui vậy? 🍥`;
+      if (['lịch', 'hoạt động', 'hôm nay'].some(w => lower.includes(w)))
+        return `${name} muốn lên lịch phiêu lưu hả! Hãy vào trang Lịch Biểu để tạo kế hoạch cho tuần này nhé! 📅 Dattebayo!`;
+      return `${name} nói chuyện thật thú vị! Mình rất thích trò chuyện với bạn. Bạn có câu hỏi gì nữa không? 🍥`;
+    };
+
+    let reply: string | null = null;
+    let provider = 'fallback';
+
+    if (geminiKey) {
+      try {
+        const systemPrompt = `Bạn là Naruto Uzumaki — ninja bạn đồng hành thân thiện, vui vẻ và đầy năng lượng của ${childName} (${child?.age ?? 7} tuổi).
+Sở thích của bé: ${JSON.stringify(child?.interests ?? [])}.
+Không thích: ${JSON.stringify(child?.dislikes ?? [])}.
+Luôn dùng ngôn ngữ vui nhộn, khích lệ, phù hợp trẻ em. Trả lời ngắn gọn 1-3 câu. Thỉnh thoảng dùng "Dattebayo!" và emoji 🍥⚡.
+Tuyệt đối KHÔNG dùng ngôn ngữ bạo lực, tiêu cực.`;
+
+        const contents = [
+          ...recentHistory.map((h: { role: string; message: string }) => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.message }],
+          })),
+          { role: 'user', parts: [{ text: message }] }
+        ];
+
+        const payload = {
+          contents,
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { maxOutputTokens: 512, temperature: 0.8 }
+        };
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          reply = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+          if (reply) provider = 'gemini';
+        }
+      } catch (err) {
+        console.error('Client-side Gemini chat error:', err);
+      }
+    }
+
+    if (!reply) {
+      reply = fallbackReply(childName, message);
+    }
+
+    // Save chat history
+    try {
+      await supabase.from('chat_history').insert([
+        { child_id: childId, role: 'user', message },
+        { child_id: childId, role: 'assistant', message: reply, metadata: { provider } },
+      ]);
+    } catch (dbErr) {
+      console.error('Failed to save chat history:', dbErr);
+    }
+
+    return { reply, provider };
   },
 
   getChatHistory: async (childId: string, limit = 20) => {
@@ -394,21 +490,113 @@ export const api = {
   },
 
   generateSchedule: async (childId: string, weekStartDate: string, theme?: string) => {
-    return callEdgeFunction<{
-      schedule: {
-        title?: string;
-        theme?: string;
-        items: Array<{
-          day_of_week: number;
-          start_time: string;
-          duration_minutes: number;
-          activity_title: string;
-          activity_theme: string;
-          notes?: string;
-        }>;
+    const supabase = getSupabaseClient();
+    const geminiKey = getGeminiKey();
+
+    // 1. Get child info
+    const { data: child } = await supabase
+      .from('children')
+      .select('id, name, age, interests, dislikes, parent_notes')
+      .eq('id', childId)
+      .single();
+
+    const childName = child?.name ?? 'bé';
+
+    // 2. Get recent schedule items to avoid repetition
+    const { data: recentItems } = await supabase
+      .from('schedule_items')
+      .select('activity_id, activities(title, theme)')
+      .eq('child_id', childId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const recentTitles = (recentItems ?? [])
+      .map((i: any) => i.activities?.title)
+      .filter(Boolean);
+
+    // 3. Fallback schedule builder
+    const makeFallbackSchedule = (cName: string, th: string) => {
+      return {
+        title: `Lịch tuần của ${cName}`,
+        theme: th || 'Khám phá thiên nhiên',
+        items: [
+          { day_of_week: 0, start_time: '09:00', duration_minutes: 30, activity_title: 'Vẽ tranh buổi sáng', activity_theme: 'Nghệ thuật', notes: 'Vẽ tự do' },
+          { day_of_week: 0, start_time: '14:00', duration_minutes: 20, activity_title: 'Đọc sách', activity_theme: 'Học tập', notes: 'Sách yêu thích' },
+          { day_of_week: 1, start_time: '09:30', duration_minutes: 25, activity_title: 'Trồng cây nhỏ', activity_theme: 'Thiên nhiên', notes: 'Theo dõi cây lớn lên' },
+          { day_of_week: 2, start_time: '10:00', duration_minutes: 30, activity_title: 'Chạy ngoài sân', activity_theme: 'Vận động', notes: 'Chơi ngoài trời 30 phút' },
+          { day_of_week: 3, start_time: '09:00', duration_minutes: 20, activity_title: 'Thí nghiệm nước', activity_theme: 'Học tập', notes: 'Quan sát sự vật thay đổi' },
+          { day_of_week: 4, start_time: '14:30', duration_minutes: 30, activity_title: 'Vẽ tranh gia đình', activity_theme: 'Nghệ thuật', notes: 'Chân dung cả nhà' },
+        ],
       };
-      provider: string;
-    }>('ai-generate-schedule', { child_id: childId, week_start_date: weekStartDate, theme });
+    };
+
+    let schedule = null;
+    let provider = 'fallback';
+
+    if (geminiKey) {
+      try {
+        const systemPrompt = `Bạn là AI lên kế hoạch hoạt động cho trẻ em người Việt. Tạo lịch tuần phù hợp lứa tuổi, vui nhộn, cân bằng. Luôn trả về JSON hợp lệ theo schema yêu cầu.`;
+
+        const userPrompt = `Tạo lịch tuần bắt đầu từ ${weekStartDate} cho bé ${childName} (${child?.age ?? 7} tuổi).
+Chủ đề: ${theme || 'Tự chọn phù hợp'}.
+Sở thích: ${JSON.stringify(child?.interests ?? [])}.
+Không thích: ${JSON.stringify(child?.dislikes ?? [])}.
+Gần đây đã làm: ${recentTitles.join(', ') || 'chưa có'}.
+Ghi chú phụ huynh: ${child?.parent_notes ?? 'không có'}.
+
+Yêu cầu: mỗi ngày 3-5 hoạt động, cân bằng học tập/vận động/nghệ thuật/thiên nhiên, thời gian hợp lý 15-45 phút mỗi hoạt động.
+day_of_week: 0=Thứ 2, 1=Thứ 3, 2=Thứ 4, 3=Thứ 5, 4=Thứ 6, 5=Thứ 7, 6=Chủ Nhật.
+
+Trả về JSON đúng schema:
+{
+  "title": "string",
+  "theme": "string", 
+  "items": [
+    {
+      "day_of_week": 0-6,
+      "start_time": "HH:MM",
+      "duration_minutes": 15-60,
+      "activity_title": "string",
+      "activity_theme": "Học tập|Vận động|Nghệ thuật|Thiên nhiên|Tự chọn",
+      "notes": "string"
+    }
+  ]
+}`;
+
+        const payload = {
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 2048,
+            temperature: 0.7,
+          },
+        };
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+          const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          schedule = JSON.parse(cleaned);
+          provider = 'gemini';
+        }
+      } catch (err) {
+        console.error('Client-side Gemini schedule error:', err);
+      }
+    }
+
+    if (!schedule) {
+      schedule = makeFallbackSchedule(childName, theme || '');
+    }
+
+    return { schedule, provider };
   },
 
   generateImage: async (_activityId: string, prompt?: string) => {
@@ -420,13 +608,68 @@ export const api = {
     return { image_url: imageUrl, activity_id: _activityId };
   },
 
-  // ── Rewards (Edge Function) ───────────────────────────────────────────────
+  // ── Rewards (Client-side) ──────────────────────────────────────────────────
   completeActivity: async (childId: string, scheduleItemId: string) => {
-    return callEdgeFunction<{ status: string; xp_earned: number; coins_earned: number }>('complete-activity', {
-      child_id: childId,
-      schedule_item_id: scheduleItemId,
-    });
+    const supabase = getSupabaseClient();
+    const XP_PER_ACTIVITY = 15;
+    const COINS_PER_ACTIVITY = 5;
+
+    // 1. Get activity info from schedule item
+    const { data: item, error: itemError } = await supabase
+      .from('schedule_items')
+      .update({ status: 'complete', completed_at: new Date().toISOString() })
+      .eq('id', scheduleItemId)
+      .eq('child_id', childId)
+      .select('id, activity_id')
+      .single();
+
+    if (itemError || !item) {
+      throw new Error('Schedule item not found or already completed');
+    }
+
+    // 2. Insert into activity_history
+    try {
+      await supabase.from('activity_history').insert({
+        child_id: childId,
+        activity_id: item.activity_id,
+        schedule_item_id: scheduleItemId,
+        status: 'complete',
+      });
+    } catch (historyErr) {
+      console.error('Failed to log activity history:', historyErr);
+    }
+
+    // 3. Upsert rewards
+    let newXp = XP_PER_ACTIVITY;
+    let newCoins = COINS_PER_ACTIVITY;
+
+    try {
+      const { data: existingReward } = await supabase
+        .from('rewards')
+        .select('xp, coins')
+        .eq('child_id', childId)
+        .single();
+
+      newXp = (existingReward?.xp ?? 0) + XP_PER_ACTIVITY;
+      newCoins = (existingReward?.coins ?? 0) + COINS_PER_ACTIVITY;
+
+      await supabase.from('rewards').upsert(
+        { child_id: childId, xp: newXp, coins: newCoins, updated_at: new Date().toISOString() },
+        { onConflict: 'child_id' }
+      );
+    } catch (rewardsErr) {
+      console.error('Failed to update rewards:', rewardsErr);
+    }
+
+    return {
+      status: 'completed',
+      xp_earned: XP_PER_ACTIVITY,
+      coins_earned: COINS_PER_ACTIVITY,
+      total_xp: newXp,
+      total_coins: newCoins,
+    };
   },
+
 
   // ── Media (Supabase Storage truc tiep) ───────────────────────────────────
   signUpload: async (uploadData: { asset_type: string; child_id?: string; filename: string; content_type: string }) => {

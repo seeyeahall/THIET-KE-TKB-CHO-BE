@@ -587,13 +587,19 @@ export default function ScheduleWizardSheet({
                                   onChange={e => updateItem(item.id, { start_time: e.target.value })}
                                   className="flex-1 text-xs font-bold border-2 border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-kid-blue"
                                 />
-                                <select
-                                  value={item.duration_minutes}
-                                  onChange={e => updateItem(item.id, { duration_minutes: Number(e.target.value) })}
-                                  className="flex-1 text-xs font-bold border-2 border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-kid-blue"
-                                >
-                                  {[15,20,30,45,60,90].map(d => <option key={d} value={d}>{d}p</option>)}
-                                </select>
+                                <div className="flex-1 relative flex items-center">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="480"
+                                    value={item.duration_minutes}
+                                    onChange={e => updateItem(item.id, { duration_minutes: Number(e.target.value) })}
+                                    className="w-full text-xs font-bold border-2 border-gray-200 rounded-xl pl-2 pr-6 py-1.5 focus:outline-none focus:border-kid-blue"
+                                  />
+                                  <span className="absolute right-2 text-[10px] text-gray-400 font-bold pointer-events-none">
+                                    p
+                                  </span>
+                                </div>
                                 <button onClick={() => setEditingId(null)} className="bg-kid-green text-white rounded-xl px-3 font-black text-xs">
                                   <Check size={14} />
                                 </button>

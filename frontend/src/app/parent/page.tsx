@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, UserPlus, Settings, LogOut, ChevronRight, Crown, Loader2, CheckCircle2, Globe, Key } from 'lucide-react';
+import { Plus, UserPlus, Settings, LogOut, ChevronRight, Crown, Loader2, CheckCircle2, Globe, Key, Music } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import AudioSettingsPanel from '@/components/AudioSettingsPanel';
 
 const AI_PROVIDERS = [
   { key: 'GEMINI_API_KEY', label: 'Gemini API Key', placeholder: 'AIzaSy...' },
@@ -19,6 +20,7 @@ export default function ParentPage() {
   const { selectedChild, setSelectedChild, setAuthToken } = useAppStore();
   const [showAddChild, setShowAddChild] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [stats, setStats] = useState({ completed: 0, total: 0, xp: 0 });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -202,7 +204,20 @@ export default function ParentPage() {
               <Settings size={24} />
             </div>
             <div className="font-black text-gray-800 text-base mb-1">Cài đặt</div>
-            <div className="text-xs text-gray-400 font-bold">API & kết nối</div>
+            <div className="text-xs text-gray-400 font-bold">API &amp; kết nối</div>
+          </button>
+
+          <button
+            onClick={() => setShowAudioSettings(true)}
+            className="col-span-2 bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hover:border-kid-orange hover:shadow-md transition-all text-left group flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-kid-orange/10 text-kid-orange flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Music size={24} />
+            </div>
+            <div>
+              <div className="font-black text-gray-800 text-base mb-1">Âm Thanh &amp; Nhạc</div>
+              <div className="text-xs text-gray-400 font-bold">Chọn nhạc nền, hiệu ứng, tuỳ chỉnh theo màn hình</div>
+            </div>
           </button>
         </div>
 
@@ -339,6 +354,21 @@ export default function ParentPage() {
               <button
                 onClick={() => setShowSettings(false)}
                 className="w-full mt-2 bg-gray-100 text-gray-600 font-black py-3 rounded-xl hover:bg-gray-200"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Audio Settings Modal */}
+        {showAudioSettings && (
+          <div className="fixed inset-0 bg-black/40 flex justify-center items-start overflow-y-auto z-50 p-6 backdrop-blur-sm">
+            <div className="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl my-8">
+              <AudioSettingsPanel />
+              <button
+                onClick={() => setShowAudioSettings(false)}
+                className="w-full mt-6 bg-gray-100 text-gray-600 font-black py-3 rounded-xl hover:bg-gray-200"
               >
                 Đóng
               </button>

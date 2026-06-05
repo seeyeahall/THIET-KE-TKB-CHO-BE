@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Plus, Settings, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
+import { audio } from '@/lib/audio';
 import SkeletonPage from '@/components/SkeletonPage';
 import type { Child } from '@/lib/types';
 
@@ -90,7 +91,7 @@ export default function SelectChildPage() {
               <div key={child.id} className="relative group">
                 <Link
                   href="/home"
-                  onClick={() => setSelectedChild(child)}
+                  onClick={() => { setSelectedChild(child); audio.sfx('pop'); }}
                   className="block bg-white rounded-3xl p-6 shadow-lg border-2 border-transparent hover:border-kid-yellow hover:scale-105 transition-all text-center h-full"
                 >
                   <div className="text-5xl mb-3">{avatars[idx % avatars.length]}</div>

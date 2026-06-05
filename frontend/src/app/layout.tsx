@@ -6,7 +6,9 @@ import { Baloo_2 } from 'next/font/google';
 import BottomNav from '@/components/BottomNav';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
+import AudioController from '@/components/AudioController';
 import { getSupabaseClient } from '@/lib/supabase';
+import { audio } from '@/lib/audio';
 import './globals.css';
 
 const baloo = Baloo_2({
@@ -97,6 +99,11 @@ export default function RootLayout({
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
+  // Tự động phát nhạc theo route
+  useEffect(() => {
+    if (pathname) audio.forRoute(pathname);
+  }, [pathname]);
+
   return (
     <html lang="vi">
       <head>
@@ -114,6 +121,7 @@ export default function RootLayout({
           </div>
         </ErrorBoundary>
         {showNav && <BottomNav />}
+        <AudioController />
       </body>
     </html>
   );

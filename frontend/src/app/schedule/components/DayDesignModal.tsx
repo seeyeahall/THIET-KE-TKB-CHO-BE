@@ -19,6 +19,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/lib/api';
+import { audio } from '@/lib/audio';
 import { getDayLabelFull, formatShortDate, parseLocalDate, themeEmoji } from '@/lib/utils/scheduleProgress';
 import type { Activity, ScheduleItem } from '@/lib/types';
 
@@ -210,6 +211,7 @@ export default function DayDesignModal({
   const addDraftItem = (item: Omit<DraftItem, 'id'>) => {
     const newItem: DraftItem = { ...item, id: `draft-${Date.now()}-${Math.random()}` };
     setDraftItems(prev => [...prev, newItem]);
+    audio.sfx('ding');
     // Scroll đến item mới sau render
     setTimeout(() => {
       lastItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -236,6 +238,7 @@ export default function DayDesignModal({
     if (!item) return;
     setDraftItems(prev => prev.filter(i => i.id !== id));
     setUndoItem(item);
+    audio.sfx('delete');
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = setTimeout(() => setUndoItem(null), 5000);
   };
@@ -502,6 +505,7 @@ export default function DayDesignModal({
         });
       }
 
+      audio.sfx('save');
       onSaved();
       onClose();
     } catch (e) {
@@ -524,6 +528,7 @@ export default function DayDesignModal({
           alert('Đã lưu tạm thời (offline)! Sẽ tự đồng bộ khi có mạng.');
         } catch { /* ignore */ }
       }
+      audio.sfx('save');
       onSaved();
       onClose();
     } finally {

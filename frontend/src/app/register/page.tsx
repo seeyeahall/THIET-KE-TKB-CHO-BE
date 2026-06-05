@@ -16,11 +16,13 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -39,7 +41,7 @@ export default function RegisterPage() {
       } catch { /* Ignore if families already exists */ }
       router.push('/select-child');
     } else {
-      setError('Vui lòng kiểm tra email để xác nhận tài khoản!');
+      setSuccess('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.');
     }
     setLoading(false);
   }
@@ -103,6 +105,12 @@ export default function RegisterPage() {
           {error && (
             <div className="bg-red-50 text-red-500 text-sm font-bold px-4 py-3 rounded-2xl">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 text-green-600 text-sm font-bold px-4 py-3 rounded-2xl">
+              {success}
             </div>
           )}
 

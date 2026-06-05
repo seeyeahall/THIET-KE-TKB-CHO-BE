@@ -640,7 +640,7 @@ Yêu cầu: "${userRequest}"
 Đã có trong lịch: ${occupiedSlots}
 Khung giờ hoạt động: 06:00 – 20:30.
 
-Tạo danh sách hoạt động phù hợp, tránh trùng giờ đã có. Mỗi hoạt động 15–90 phút. Phân bổ giờ hợp lý theo ngữ cảnh (sáng/chiều/tối). Tối đa 5 hoạt động.`;
+Tạo danh sách các hoạt động TÁCH RỜI nhau (không gộp chung). Ví dụ: 'học vẽ và bơi lội' phải thành 2 item riêng biệt. Mỗi hoạt động 15–90 phút. Phân bổ giờ hợp lý theo ngữ cảnh (sáng/chiều/tối), khoảng cách hợp lý. Tránh trùng giờ đã có. Tối đa 5 hoạt động.`;
 
     const responseSchema = {
       type: 'array',
@@ -653,7 +653,7 @@ Tạo danh sách hoạt động phù hợp, tránh trùng giờ đã có. Mỗi 
             enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn']
           },
           start_time: { type: 'string', description: 'Giờ bắt đầu HH:MM (06:00–20:30)' },
-          duration_minutes: { type: 'integer', minimum: 10, maximum: 120 }
+          duration_minutes: { type: 'integer', minimum: 1, maximum: 480 }
         },
         required: ['activity_title', 'activity_theme', 'start_time', 'duration_minutes']
       }
@@ -750,7 +750,7 @@ Tạo confirmMessage bằng tiếng Việt kiểu Naruto vui vẻ (1 câu ngắn
               activity_title: { type: 'string' },
               activity_theme: { type: 'string', enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn'] },
               start_time: { type: 'string' },
-              duration_minutes: { type: 'integer', minimum: 10, maximum: 120 }
+              duration_minutes: { type: 'integer', minimum: 1, maximum: 480 }
             },
             required: ['activity_title', 'activity_theme', 'start_time', 'duration_minutes']
           }
@@ -981,7 +981,7 @@ naruto_summary: Naruto mô tả ngắn gọn kế hoạch, vui nhộn, dùng Dat
               day_of_week: { type: 'integer', minimum: 0, maximum: 6 },
               date_str: { type: 'string' },
               start_time: { type: 'string' },
-              duration_minutes: { type: 'integer', minimum: 10, maximum: 120 },
+              duration_minutes: { type: 'integer', minimum: 1, maximum: 480 },
               activity_title: { type: 'string' },
               activity_theme: { type: 'string', enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn'] },
               notes: { type: 'string' },

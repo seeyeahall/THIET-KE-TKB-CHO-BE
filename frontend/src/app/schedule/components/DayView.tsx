@@ -74,26 +74,55 @@ export default function DayView({
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
+    let finalItems: ScheduleItem[] = [];
     try {
-      const data = await api.getScheduleItemsByDate(childId, dateStr);
-      setItems(data);
+      finalItems = await api.getScheduleItemsByDate(childId, dateStr);
     } catch {
       try {
         const schedules = await api.listSchedules(childId);
         if (schedules.length > 0 && schedules[0].items) {
           const d = parseLocalDate(dateStr);
           const dow = (d.getDay() + 6) % 7; // 0=T2(Mon)...6=CN(Sun)
-          const filtered = schedules[0].items.filter(i => i.day_of_week === dow);
-          setItems(filtered);
-        } else {
-          setItems([]);
+          finalItems = schedules[0].items.filter(i => i.day_of_week === dow);
         }
       } catch {
-        setItems([]);
+        // keep finalItems empty
       }
-    } finally {
-      setLoading(false);
     }
+    
+    // Đọc offline drafts
+    try {
+      const offlineKey = `offline_drafts_${childId}`;
+      const offlineData = JSON.parse(localStorage.getItem(offlineKey) || '[]');
+      const draftsToday = offlineData.filter((i: any) => i.dateStr === dateStr).map((i: any, idx: number) => ({
+        id: `offline-${idx}`,
+        activity_id: i.activity_id || `act-off-${idx}`,
+        schedule_id: 'offline',
+        child_id: childId,
+        day_of_week: 0,
+        start_time: i.start_time,
+        duration_minutes: i.duration_minutes,
+        sort_order: 0,
+        status: 'pending',
+        activity: {
+          id: i.activity_id || `act-off-${idx}`,
+          title: i.activity_title,
+          theme: i.activity_theme || 'Tự chọn',
+          duration_minutes: i.duration_minutes,
+          slug: `offline-act-${idx}`,
+          status: 'published',
+          created_by: 'system',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      finalItems = [...finalItems, ...draftsToday];
+    } catch (e) { /* ignore */ }
+
+    setItems(finalItems);
+    setLoading(false);
   }, [childId, dateStr]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);

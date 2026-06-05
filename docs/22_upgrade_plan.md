@@ -163,3 +163,13 @@ Bé nói "Con muốn tuần có học vẽ và bơi lội"
 
 ### Build Result
 - npm run build: **✅ 14/14 pages, 0 errors** (2026-06-05)
+
+## Nâng Cấp & Fix Bug Từ Feedback Kiểm Thử (2026-06-05)
+
+| ID | File | Vấn đề | Priority | Status |
+|---|---|---|---|---|
+| P4-1 | select-child/page.tsx | Nút "+ Thêm bé" (Tạo người dùng mới) không có event onClick | P1 | ✅ DONE |
+| P4-2 | register/page.tsx | UX Đăng ký: Lỗi đỏ (Error) khi Supabase bắt Confirm Email | P2 | ✅ DONE |
+| P4-3 | api.ts | AI Parsing Bug: AI gộp chung các hoạt động thành 1 item duy nhất | P1 | ✅ DONE |
+| P4-4 | DayView.tsx | Offline Rendering Bug: Không hiển thị lịch lưu tạm ngoại tuyến | P1 | ✅ DONE |
+| P4-5 | DayDesignModal.tsx | DnD Offset Bug: Kéo thả bị lệch/trượt khung giờ do thiếu collisionDetection | P2 | ✅ DONE |

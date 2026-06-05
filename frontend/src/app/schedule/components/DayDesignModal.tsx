@@ -14,6 +14,7 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  pointerWithin,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -690,6 +691,7 @@ export default function DayDesignModal({
           {/* ── ActivityPool + Timeline với dnd-kit ──────── */}
           <DndContext
             sensors={sensors}
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
@@ -779,11 +781,10 @@ export default function DayDesignModal({
                 className="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-700 focus:outline-none focus:border-kid-blue"
               />
               <div className="flex gap-2">
-                {/* FIX: input type=time step=900 (15p) thay vì select 30p */}
                 <div className="flex-1 relative">
                   <input
                     type="time"
-                    step="900"
+                    step="60"
                     min="06:00"
                     max="21:00"
                     value={newTime}
@@ -798,15 +799,19 @@ export default function DayDesignModal({
                     </p>
                   )}
                 </div>
-                <select
-                  value={newDuration}
-                  onChange={e => setNewDuration(Number(e.target.value))}
-                  className="flex-1 bg-white border-2 border-gray-200 rounded-xl px-2 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:border-kid-blue"
-                >
-                  {[15,20,30,45,60,90,120].map(d => (
-                    <option key={d} value={d}>{d} phút</option>
-                  ))}
-                </select>
+                <div className="flex-1 relative flex items-center">
+                  <input
+                    type="number"
+                    min="1"
+                    max="480"
+                    value={newDuration}
+                    onChange={e => setNewDuration(Number(e.target.value))}
+                    className="w-full bg-white border-2 border-gray-200 rounded-xl pl-3 pr-8 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:border-kid-blue"
+                  />
+                  <span className="absolute right-3 text-[10px] text-gray-400 font-bold pointer-events-none">
+                    phút
+                  </span>
+                </div>
                 <button
                   onClick={handleAddManual}
                   disabled={!newTitle.trim()}

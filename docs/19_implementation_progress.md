@@ -358,3 +358,13 @@ Uu tien thu tu lam:
 - [x] P1-8: Home UUID theme hash
 - [x] P2-1 den P2-5: Animation, font, activities, BottomNav
 - [x] P3-1 den P3-3: Provider, httpx pool, PWA offline
+
+### Đã Hoàn Thành Cập Nhật P4 (2026-06-05)
+- [x] Fix P4-1: Thêm sự kiện onClick (alert) cho nút "Thêm bé" ở select-child/page.tsx
+- [x] Fix P4-2: Cải thiện UX phần Confirm Email thành Success ở trang Đăng ký (register/page.tsx)
+- [x] Fix P4-3: Cập nhật prompt AI trong api.ts (parseScheduleItemsFromText) yêu cầu rõ ràng tách rời các hoạt động
+- [x] Fix P4-4: Đọc offline_drafts từ localStorage trong DayView.tsx để hiển thị lịch offline mượt mà
+- [x] Fix P4-5: Thêm collisionDetection={pointerWithin} vào DndContext trong DayDesignModal.tsx để thả DnD chính xác
+
+### Đang Chờ Thực Hiện (TODO)
+- Không còn (Tất cả P4 đã hoàn tất)

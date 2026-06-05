@@ -582,7 +582,7 @@ export default function ScheduleWizardSheet({
                               />
                               <div className="flex gap-2">
                                 <input
-                                  type="time" step="900"
+                                  type="time" step="60"
                                   value={item.start_time}
                                   onChange={e => updateItem(item.id, { start_time: e.target.value })}
                                   className="flex-1 text-xs font-bold border-2 border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-kid-blue"

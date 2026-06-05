@@ -60,7 +60,10 @@ export default function SelectChildPage() {
               </Link>
             ))}
 
-            <button className="bg-white/60 rounded-3xl p-6 border-2 border-dashed border-gray-300 hover:border-kid-green hover:bg-kid-green/10 transition-all text-center">
+            <button
+              onClick={() => alert('Tính năng thêm bé sẽ sớm ra mắt! ✨')}
+              className="bg-white/60 rounded-3xl p-6 border-2 border-dashed border-gray-300 hover:border-kid-green hover:bg-kid-green/10 transition-all text-center"
+            >
               <div className="text-5xl mb-3 text-kid-green">+</div>
               <div className="text-sm font-bold text-gray-500">Thêm bé</div>
             </button>

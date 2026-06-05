@@ -78,7 +78,6 @@ export const api = {
     const { data, error } = await supabase
       .from('children')
       .select('*')
-      .is('deleted_at', null)
       .order('created_at', { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []) as Child[];

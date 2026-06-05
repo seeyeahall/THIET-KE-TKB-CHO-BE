@@ -366,5 +366,9 @@ Uu tien thu tu lam:
 - [x] Fix P4-4: Đọc offline_drafts từ localStorage trong DayView.tsx để hiển thị lịch offline mượt mà
 - [x] Fix P4-5: Thêm collisionDetection={pointerWithin} vào DndContext trong DayDesignModal.tsx để thả DnD chính xác
 
+### Đã Hoàn Thành Tính Năng Bổ Sung (2026-06-05)
+- [x] Cho phép nhập thời gian tự do (giờ, phút) ở DayDesignModal và ScheduleWizardSheet thay vì `<select>`
+- [x] Tính năng Quản lý người dùng (Bé): Thêm UI modal tạo bé mới và xoá bé ở `select-child/page.tsx`, đồng thời bổ sung `deleteChild` API.
+
 ### Đang Chờ Thực Hiện (TODO)
-- Không còn (Tất cả P4 đã hoàn tất)
+- Không còn

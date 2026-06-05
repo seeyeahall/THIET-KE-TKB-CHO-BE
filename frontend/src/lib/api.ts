@@ -152,6 +152,12 @@ export const api = {
     return data as Child;
   },
 
+  deleteChild: async (id: string): Promise<void> => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('children').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   // ── Activities ────────────────────────────────────────────────────────────
   listActivities: async (params?: { age?: number; theme?: string }): Promise<Activity[]> => {
     const supabase = getSupabaseClient();

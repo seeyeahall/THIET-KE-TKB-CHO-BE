@@ -1,4 +1,4 @@
-# Schedule System
+﻿# Schedule System
 
 ## Muc tieu
 
@@ -181,3 +181,57 @@ AI tra ve JSON:
 ```
 
 Backend validate: hoat dong co ton tai, thoi luong hop le, do tuoi phu hop, khong trung gio, canh bao hoat dong can phu huynh.
+
+## Cap Nhat 2026-06-05 — AI Schedule Wizard
+
+### Cach Vao AI Schedule Wizard
+1. Tu Schedule page: Bam nut FAB (icon Wand2) goc duoi phai
+2. Tu Chat page: Naruto reply ve lich -> bam nut "Thiet ke lich ngay"
+3. Tu Chat quick questions: "Len lich hom nay" hoac "Tao lich ca tuan"
+
+### Luong AI Schedule Wizard (3 Buoc)
+
+`
+Buoc 1 - Input
+  -> Be noi (voice) hoac nhan vao o text
+  -> Chon quick preset hoac toggle Ngay/Tuan
+  -> Bam "Phan tich & Thiet ke"
+     |
+     v
+  analyzeScheduleRequest() [~1s]
+  -> Gemini hieu scope/theme/preferences
+  -> Naruto TTS xac nhan
+     |
+     v
+  generateSchedulePlan() [~2s]
+  -> Tao full plan voi gio cu the
+  -> Naruto TTS doc tom tat
+
+Buoc 2 - Preview (edit-in-place)
+  -> Group theo ngay (Thu 2, Thu 3...)
+  -> Moi item: emoji + ten + gio + duration + xoa
+  -> Tap gio -> inline time picker
+  -> Conflict detection do real-time
+  -> Toggle: Merge / Thay the lich cu
+  -> [Thiet ke lai] [Luu X hoat dong]
+
+Buoc 3 - Success
+  -> Animation + Naruto TTS
+  -> Navigate ve schedule
+`
+
+### Convention AI Schedule Wizard
+- scope 'day': Tao lich 1 ngay cu the
+- scope 'week': Tao lich ca tuan (Thu 2 -> CN)
+- time_budget: 'light' (2-3 HD/ngay), 'normal' (3-4), 'rich' (4-5+)
+- Merge mode (mac dinh): giu lich cu, chi them items moi
+- Replace mode: xoa items cu theo ngay truoc khi them
+
+### API JSON Schema
+analyzeScheduleRequest output:
+  scope, target_date, target_week_start, theme, preferences[], time_budget, naruto_intro
+
+generateSchedulePlan output:
+  title, theme, scope, naruto_summary
+  items[]: { day_of_week, date_str, start_time, duration_minutes,
+             activity_title, activity_theme, notes, emoji }

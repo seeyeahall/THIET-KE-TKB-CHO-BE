@@ -18,7 +18,15 @@ async function getSession() {
 // ─── Gemini key helper ─────────────────────────────────────────────────────────
 function getGeminiKey(): string | null {
   if (typeof window === 'undefined') return null;
+
   return localStorage.getItem('GEMINI_API_KEY');
+}
+
+// ─── Date helper ───────────────────────────────────────────────────────────────
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 // ─── Extra headers for Edge Functions ─────────────────────────────────────────
@@ -599,7 +607,532 @@ Trả về JSON đúng schema:
     return { schedule, provider };
   },
 
+  // ── AI Schedule Parsing (JSON mode — đảm bảo output chuẩn) ──────────────────
+  /**
+   * Phân tích yêu cầu text/voice thành danh sách schedule items có giờ cụ thể.
+   * Dùng Gemini JSON mode để đảm bảo output đúng schema, không cần regex.
+   */
+  parseScheduleItemsFromText: async (
+    userRequest: string,
+    context: {
+      childName: string;
+      childAge?: number;
+      dateStr: string;       // 'YYYY-MM-DD'
+      dayLabel: string;      // 'Thứ Tư'
+      existingItems: Array<{ activity_title: string; start_time: string; duration_minutes: number }>;
+    }
+  ): Promise<Array<{ activity_title: string; activity_theme: string; start_time: string; duration_minutes: number }>> => {
+    const geminiKey = getGeminiKey();
+    if (!geminiKey) return [];
+
+    // Tính slots đã bị chiếm để AI tránh trùng giờ
+    const occupiedSlots = context.existingItems.map(i => {
+      const [h, m] = i.start_time.split(':').map(Number);
+      const endMin = h * 60 + m + i.duration_minutes;
+      return `${i.start_time}–${String(Math.floor(endMin / 60)).padStart(2,'0')}:${String(endMin % 60).padStart(2,'0')} (${i.activity_title})`;
+    }).join(', ') || 'Chưa có';
+
+    const systemPrompt = `Bạn là AI lên kế hoạch hoạt động cho trẻ em Việt Nam. Nhiệm vụ: phân tích yêu cầu và trả về danh sách hoạt động phù hợp với giờ cụ thể. Luôn trả về JSON hợp lệ theo schema được yêu cầu.`;
+
+    const userPrompt = `Bé: ${context.childName}, ${context.childAge ?? 7} tuổi.
+Ngày: ${context.dayLabel}, ${context.dateStr}.
+Yêu cầu: "${userRequest}"
+Đã có trong lịch: ${occupiedSlots}
+Khung giờ hoạt động: 06:00 – 20:30.
+
+Tạo danh sách hoạt động phù hợp, tránh trùng giờ đã có. Mỗi hoạt động 15–90 phút. Phân bổ giờ hợp lý theo ngữ cảnh (sáng/chiều/tối). Tối đa 5 hoạt động.`;
+
+    const responseSchema = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          activity_title: { type: 'string', description: 'Tên hoạt động ngắn gọn, rõ ràng' },
+          activity_theme: {
+            type: 'string',
+            enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn']
+          },
+          start_time: { type: 'string', description: 'Giờ bắt đầu HH:MM (06:00–20:30)' },
+          duration_minutes: { type: 'integer', minimum: 10, maximum: 120 }
+        },
+        required: ['activity_title', 'activity_theme', 'start_time', 'duration_minutes']
+      }
+    };
+
+    try {
+      const payload = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        },
+      };
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      // Validate từng item
+      return parsed.filter((p: unknown): p is { activity_title: string; activity_theme: string; start_time: string; duration_minutes: number } =>
+        typeof p === 'object' && p !== null &&
+        'activity_title' in p && 'start_time' in p && 'duration_minutes' in p
+      );
+    } catch (err) {
+      console.error('parseScheduleItemsFromText error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Phân tích lệnh giọng nói để xác định intent: thêm/sửa/xóa hoạt động.
+   * Trả về JSON có cấu trúc để DayDesignModal xử lý đúng action.
+   */
+  detectVoiceIntent: async (
+    voiceText: string,
+    context: {
+      childName: string;
+      dateStr: string;
+      dayLabel: string;
+      existingItems: Array<{ activity_title: string; start_time: string; duration_minutes: number }>;
+    }
+  ): Promise<{
+    intent: 'add' | 'modify' | 'delete' | 'unknown';
+    items?: Array<{ activity_title: string; activity_theme: string; start_time: string; duration_minutes: number }>;
+    target_title?: string;
+    new_start_time?: string;
+    new_duration_minutes?: number;
+    confirmMessage: string;  // Câu Naruto sẽ đọc to sau khi xử lý
+  }> => {
+    const geminiKey = getGeminiKey();
+    const defaultResponse = {
+      intent: 'unknown' as const,
+      confirmMessage: `Naruto chưa hiểu lắm, ${context.childName} thử nói lại nhé! 🍥`,
+    };
+    if (!geminiKey) return defaultResponse;
+
+    const existingSummary = context.existingItems.length > 0
+      ? context.existingItems.map(i => `"${i.activity_title}" lúc ${i.start_time} (${i.duration_minutes} phút)`).join(', ')
+      : 'Chưa có';
+
+    const systemPrompt = `Bạn là AI phân tích lệnh giọng nói của trẻ em Việt Nam để quản lý lịch hoạt động. Phân tích intent và trả về JSON chính xác.`;
+
+    const userPrompt = `Bé ${context.childName} (${context.dayLabel}, ${context.dateStr}) nói: "${voiceText}"
+Lịch hiện có: ${existingSummary}
+
+Phân tích intent:
+- "thêm/muốn/cho mình/làm" → intent: "add", tạo items mới
+- "đổi/chuyển/dời [tên] sang [giờ]" → intent: "modify", target_title + new_start_time  
+- "bỏ/xóa/không muốn [tên]" → intent: "delete", target_title
+- Không rõ → intent: "unknown"
+
+Tạo confirmMessage bằng tiếng Việt kiểu Naruto vui vẻ (1 câu ngắn) để đọc to sau khi xử lý.`;
+
+    const responseSchema = {
+      type: 'object',
+      properties: {
+        intent: { type: 'string', enum: ['add', 'modify', 'delete', 'unknown'] },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              activity_title: { type: 'string' },
+              activity_theme: { type: 'string', enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn'] },
+              start_time: { type: 'string' },
+              duration_minutes: { type: 'integer', minimum: 10, maximum: 120 }
+            },
+            required: ['activity_title', 'activity_theme', 'start_time', 'duration_minutes']
+          }
+        },
+        target_title: { type: 'string' },
+        new_start_time: { type: 'string' },
+        new_duration_minutes: { type: 'integer' },
+        confirmMessage: { type: 'string' }
+      },
+      required: ['intent', 'confirmMessage']
+    };
+
+    try {
+      const payload = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          temperature: 0.5,
+          maxOutputTokens: 512,
+        },
+      };
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) return defaultResponse;
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+      const parsed = JSON.parse(raw);
+      return { ...defaultResponse, ...parsed };
+    } catch (err) {
+      console.error('detectVoiceIntent error:', err);
+      return defaultResponse;
+    }
+  },
+
+  // ── AI Schedule Wizard (3-step pipeline) ─────────────────────────────────────
+
+  /**
+   * Bước 1: Phân tích yêu cầu tự do (voice/text) → xác định scope, theme, preferences.
+   * Trả về JSON để làm input cho generateSchedulePlan().
+   */
+  analyzeScheduleRequest: async (
+    userRequest: string,
+    context: {
+      childName: string;
+      childAge?: number;
+      todayStr: string;           // 'YYYY-MM-DD'
+      currentWeekStart: string;   // 'YYYY-MM-DD' Monday of current week
+    }
+  ): Promise<{
+    scope: 'day' | 'week';
+    target_date: string;          // 'YYYY-MM-DD' nếu scope=day
+    target_week_start: string;    // 'YYYY-MM-DD' nếu scope=week
+    theme: string;
+    preferences: string[];
+    time_budget: 'light' | 'normal' | 'rich';
+    naruto_intro: string;
+  }> => {
+    const geminiKey = getGeminiKey();
+    // Fallback mặc định
+    const fallback = {
+      scope: 'week' as const,
+      target_date: context.todayStr,
+      target_week_start: context.currentWeekStart,
+      theme: 'Tự chọn',
+      preferences: [],
+      time_budget: 'normal' as const,
+      naruto_intro: `Dattebayo! Mình sẽ thiết kế lịch cho ${context.childName} ngay! 🍥⚡`,
+    };
+    if (!geminiKey) return fallback;
+
+    const systemPrompt = `Bạn là AI phân tích yêu cầu lịch hoạt động cho trẻ em Việt Nam. Phân tích intent và trả về JSON chính xác.`;
+
+    const userPrompt = `Bé ${context.childName} (${context.childAge ?? 7} tuổi) nói: "${userRequest}"
+Hôm nay: ${context.todayStr} (thứ ${new Date(context.todayStr + 'T00:00:00').getDay() || 7} trong tuần).
+Tuần này bắt đầu từ: ${context.currentWeekStart}.
+
+Phân tích:
+- Nếu đề cập "hôm nay/ngày mai/thứ..." → scope="day", target_date=ngày tương ứng
+- Nếu đề cập "tuần/cả tuần/7 ngày" hoặc không rõ → scope="week", target_week_start=${context.currentWeekStart}
+- theme: tóm tắt chủ đề chung ("Nghệ thuật & Sáng tạo", "Vận động & Thiên nhiên", v.v.)
+- preferences: danh sách yêu cầu cụ thể bé đề cập
+- time_budget: "light" (1-2 HĐ/ngày), "normal" (3-4 HĐ/ngày), "rich" (4-5+ HĐ/ngày)
+- naruto_intro: câu Naruto xác nhận đã hiểu yêu cầu, ngắn gọn vui nhộn (để TTS đọc)`;
+
+    const responseSchema = {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', enum: ['day', 'week'] },
+        target_date: { type: 'string' },
+        target_week_start: { type: 'string' },
+        theme: { type: 'string' },
+        preferences: { type: 'array', items: { type: 'string' } },
+        time_budget: { type: 'string', enum: ['light', 'normal', 'rich'] },
+        naruto_intro: { type: 'string' },
+      },
+      required: ['scope', 'target_date', 'target_week_start', 'theme', 'preferences', 'time_budget', 'naruto_intro'],
+    };
+
+    try {
+      const payload = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.4, maxOutputTokens: 512 },
+      };
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!resp.ok) return fallback;
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+      return { ...fallback, ...JSON.parse(raw) };
+    } catch (err) {
+      console.error('analyzeScheduleRequest error:', err);
+      return fallback;
+    }
+  },
+
+  /**
+   * Bước 2: Tạo full plan lịch ngày/tuần với context đầy đủ (child profile, lịch đã có, lịch sử).
+   * Đây là hàm nặng nhất — gọi Gemini với prompt phong phú.
+   */
+  generateSchedulePlan: async (
+    analysis: {
+      scope: 'day' | 'week';
+      target_date: string;
+      target_week_start: string;
+      theme: string;
+      preferences: string[];
+      time_budget: 'light' | 'normal' | 'rich';
+    },
+    context: {
+      childName: string;
+      childAge?: number;
+      interests: string[];
+      dislikes: string[];
+      parentNotes?: string;
+      existingItems: Array<{ day_of_week: number; start_time: string; duration_minutes: number; activity_title: string }>;
+      recentActivities: string[];   // Tiêu đề hoạt động 7 ngày gần đây
+    }
+  ): Promise<{
+    title: string;
+    theme: string;
+    scope: 'day' | 'week';
+    items: Array<{
+      day_of_week: number;
+      date_str: string;
+      start_time: string;
+      duration_minutes: number;
+      activity_title: string;
+      activity_theme: string;
+      notes: string;
+      emoji: string;
+    }>;
+    naruto_summary: string;
+  }> => {
+    const geminiKey = getGeminiKey();
+
+    // Fallback schedule
+    const makeFallback = () => ({
+      title: `Lịch ${analysis.scope === 'day' ? 'ngày' : 'tuần'} của ${context.childName}`,
+      theme: analysis.theme || 'Tự chọn',
+      scope: analysis.scope,
+      items: analysis.scope === 'day'
+        ? [
+            { day_of_week: new Date(analysis.target_date + 'T00:00:00').getDay() === 0 ? 6 : new Date(analysis.target_date + 'T00:00:00').getDay() - 1, date_str: analysis.target_date, start_time: '09:00', duration_minutes: 30, activity_title: 'Vẽ tranh', activity_theme: 'Nghệ thuật', notes: '', emoji: '🎨' },
+            { day_of_week: new Date(analysis.target_date + 'T00:00:00').getDay() === 0 ? 6 : new Date(analysis.target_date + 'T00:00:00').getDay() - 1, date_str: analysis.target_date, start_time: '14:00', duration_minutes: 20, activity_title: 'Đọc sách', activity_theme: 'Học tập', notes: '', emoji: '📚' },
+          ]
+        : [
+            { day_of_week: 0, date_str: analysis.target_week_start, start_time: '09:00', duration_minutes: 30, activity_title: 'Vẽ tranh', activity_theme: 'Nghệ thuật', notes: '', emoji: '🎨' },
+            { day_of_week: 1, date_str: addDays(analysis.target_week_start, 1), start_time: '09:30', duration_minutes: 25, activity_title: 'Trồng cây', activity_theme: 'Thiên nhiên', notes: '', emoji: '🌿' },
+            { day_of_week: 2, date_str: addDays(analysis.target_week_start, 2), start_time: '10:00', duration_minutes: 30, activity_title: 'Chạy bộ', activity_theme: 'Vận động', notes: '', emoji: '🏃' },
+          ],
+      naruto_summary: `Dattebayo! Mình đã thiết kế lịch ${analysis.scope === 'day' ? 'ngày' : 'tuần'} cho ${context.childName} rồi! Xem thử nhé! 🍥⚡`,
+    });
+
+    if (!geminiKey) return makeFallback();
+
+    // Tính occupied slots để AI tránh trùng
+    const occupiedStr = context.existingItems.length > 0
+      ? context.existingItems.map(i => {
+          const days = ['T2','T3','T4','T5','T6','T7','CN'];
+          return `${days[i.day_of_week] ?? i.day_of_week} ${i.start_time} (${i.activity_title}, ${i.duration_minutes}p)`;
+        }).join('; ')
+      : 'Chưa có';
+
+    const activityPerDay = analysis.time_budget === 'light' ? '2-3' : analysis.time_budget === 'rich' ? '4-5' : '3-4';
+    const scopeDescription = analysis.scope === 'day'
+      ? `Ngày ${analysis.target_date} (chỉ 1 ngày)`
+      : `Cả tuần từ ${analysis.target_week_start} đến ${addDays(analysis.target_week_start, 6)} (Thứ 2 đến Chủ Nhật)`;
+
+    const systemPrompt = `Bạn là AI thiết kế lịch hoạt động cho trẻ em Việt Nam. Tạo lịch chi tiết, cân bằng, vui nhộn. Luôn trả về JSON đúng schema.`;
+
+    const userPrompt = `Thiết kế lịch cho bé ${context.childName} (${context.childAge ?? 7} tuổi).
+Phạm vi: ${scopeDescription}.
+Chủ đề: "${analysis.theme}".
+Sở thích: ${context.interests.join(', ') || 'không rõ'}.
+Không thích: ${context.dislikes.join(', ') || 'không rõ'}.
+Ghi chú phụ huynh: ${context.parentNotes || 'không có'}.
+Yêu cầu đặc biệt: ${analysis.preferences.join('; ') || 'không có'}.
+Lịch đã có (tránh trùng): ${occupiedStr}.
+Gần đây đã làm (tránh lặp): ${context.recentActivities.slice(0, 5).join(', ') || 'chưa có'}.
+Số hoạt động mỗi ngày: ${activityPerDay}.
+Khung giờ: 06:00–20:30. Thời lượng mỗi HĐ: 15–60 phút.
+Convention day_of_week: 0=Thứ 2, 1=Thứ 3, 2=Thứ 4, 3=Thứ 5, 4=Thứ 6, 5=Thứ 7, 6=Chủ Nhật.
+
+Tạo lịch phong phú, đa dạng chủ đề (học tập/vận động/nghệ thuật/thiên nhiên). Phân bổ giờ hợp lý (sáng học, chiều vui, tối nhẹ nhàng).
+naruto_summary: Naruto mô tả ngắn gọn kế hoạch, vui nhộn, dùng Dattebayo (để TTS đọc, tối đa 2 câu).`;
+
+    const responseSchema = {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        theme: { type: 'string' },
+        scope: { type: 'string', enum: ['day', 'week'] },
+        naruto_summary: { type: 'string' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              day_of_week: { type: 'integer', minimum: 0, maximum: 6 },
+              date_str: { type: 'string' },
+              start_time: { type: 'string' },
+              duration_minutes: { type: 'integer', minimum: 10, maximum: 120 },
+              activity_title: { type: 'string' },
+              activity_theme: { type: 'string', enum: ['Học tập', 'Nghệ thuật', 'Vận động', 'Thiên nhiên', 'Âm nhạc', 'Khoa học', 'Gia đình', 'Tự chọn'] },
+              notes: { type: 'string' },
+              emoji: { type: 'string' },
+            },
+            required: ['day_of_week', 'date_str', 'start_time', 'duration_minutes', 'activity_title', 'activity_theme', 'notes', 'emoji'],
+          },
+        },
+      },
+      required: ['title', 'theme', 'scope', 'items', 'naruto_summary'],
+    };
+
+    try {
+      const payload = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.8, maxOutputTokens: 4096 },
+      };
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!resp.ok) return makeFallback();
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+      const parsed = JSON.parse(raw);
+      if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) return makeFallback();
+      return { ...makeFallback(), ...parsed };
+    } catch (err) {
+      console.error('generateSchedulePlan error:', err);
+      return makeFallback();
+    }
+  },
+
+  /**
+   * Bước 3: Batch save toàn bộ plan lên Supabase.
+   * Tạo schedule (nếu chưa có), tạo activities, thêm schedule_items.
+   */
+  executeSchedulePlan: async (
+    plan: {
+      title: string;
+      theme: string;
+      scope: 'day' | 'week';
+      items: Array<{
+        day_of_week: number;
+        date_str: string;
+        start_time: string;
+        duration_minutes: number;
+        activity_title: string;
+        activity_theme: string;
+        notes: string;
+        emoji: string;
+      }>;
+    },
+    childId: string,
+    weekStart: string,              // 'YYYY-MM-DD' Monday
+    existingScheduleId?: string,    // Nếu có → merge vào schedule đó
+    replaceExisting = false,        // Nếu true → xóa items cũ trước
+  ): Promise<{ success: boolean; scheduleId: string; itemCount: number }> => {
+    const supabase = getSupabaseClient();
+
+    try {
+      // 1. Lấy hoặc tạo Schedule
+      let scheduleId = existingScheduleId ?? null;
+
+      if (!scheduleId) {
+        const existing = await supabase
+          .from('schedules')
+          .select('id')
+          .eq('child_id', childId)
+          .eq('week_start_date', weekStart)
+          .maybeSingle();
+
+        if (existing.data?.id) {
+          scheduleId = existing.data.id;
+        } else {
+          const { data: newSched, error: schedErr } = await supabase
+            .from('schedules')
+            .insert({ child_id: childId, title: plan.title, week_start_date: weekStart, theme: plan.theme })
+            .select('id')
+            .single();
+          if (schedErr) throw schedErr;
+          scheduleId = newSched.id;
+        }
+      }
+
+      // 2. Nếu replaceExisting → xóa items cũ theo ngày trong plan
+      if (replaceExisting && scheduleId) {
+        const daysInPlan = Array.from(new Set(plan.items.map(i => i.day_of_week)));
+
+        await supabase
+          .from('schedule_items')
+          .delete()
+          .eq('schedule_id', scheduleId)
+          .in('day_of_week', daysInPlan);
+      }
+
+      // 3. Batch tạo activities + schedule_items
+      let itemCount = 0;
+      for (const item of plan.items) {
+        // Tạo activity (hoặc tìm existing theo tên)
+        const { data: existAct } = await supabase
+          .from('activities')
+          .select('id')
+          .eq('title', item.activity_title)
+          .maybeSingle();
+
+        let activityId: string;
+        if (existAct?.id) {
+          activityId = existAct.id;
+        } else {
+          const { data: newAct, error: actErr } = await supabase
+            .from('activities')
+            .insert({
+              title: item.activity_title,
+              theme: item.activity_theme,
+              duration_minutes: item.duration_minutes,
+              slug: item.activity_title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 50),
+              requires_parent: false,
+              status: 'published',
+              description: item.notes || '',
+            })
+            .select('id')
+            .single();
+          if (actErr) { console.error('Activity insert error:', actErr); continue; }
+          activityId = newAct.id;
+        }
+
+        // Thêm schedule_item
+        const { error: itemErr } = await supabase
+          .from('schedule_items')
+          .insert({
+            schedule_id: scheduleId,
+            child_id: childId,
+            activity_id: activityId,
+            day_of_week: item.day_of_week,
+            start_time: item.start_time,
+            duration_minutes: item.duration_minutes,
+            sort_order: itemCount,
+            status: 'planned',
+          });
+        if (!itemErr) itemCount++;
+      }
+
+      return { success: true, scheduleId: scheduleId!, itemCount };
+    } catch (err) {
+      console.error('executeSchedulePlan error:', err);
+      return { success: false, scheduleId: '', itemCount: 0 };
+    }
+  },
+
   generateImage: async (_activityId: string, prompt?: string) => {
+
     // Client-side Pollinations.ai (hoan toan mien phi, khong can key)
     const safePrompt = encodeURIComponent(
       prompt ?? 'A cute watercolor illustration of a Vietnamese child doing a fun activity. Bright colors, playful, children book style.'

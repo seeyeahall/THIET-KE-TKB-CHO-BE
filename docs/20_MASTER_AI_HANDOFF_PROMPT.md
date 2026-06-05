@@ -9,56 +9,82 @@
 Bạn là AI engineer được giao nhiệm vụ tiếp tục nâng cấp dự án **Kid Adventure Planner** tại `e:\THIET KE TKB CHO BE`.
 
 **Bước 1:** Đọc các file sau theo thứ tự:
-1. `docs/22_upgrade_plan.md` — kế hoạch nâng cấp đầy đủ với P0/P1/P2/P3
-2. `docs/19_implementation_progress.md` — trạng thái hiện tại
-3. `docs/17_backend_module_links.md` — kiến trúc module
-4. `docs/07_schedule_system.md` — convention day_of_week (0=T2)
+1. `docs/22_upgrade_plan.md` — kế hoạch nâng cấp đầy đủ với trạng thái từng item
+2. `docs/19_implementation_progress.md` — trạng thái triển khai mới nhất
+3. `docs/07_schedule_system.md` — schedule system + AI Wizard convention
+4. `docs/17_backend_module_links.md` — kiến trúc module
 
 **Bước 2:** Xác nhận convention quan trọng:
 - `day_of_week: 0=T2(Mon), 1=T3, ..., 6=CN(Sun)` — weekday() convention (Python)
-- Frontend dùng `(getDay()+6)%7` để convert JS getDay() sang weekday
-- AI tên: **Naruto** (Naruto Uzumaki từ anime Naruto)
+- Frontend convert: `(jsDate.getDay() + 6) % 7`
+- AI tên: **Naruto** (Naruto Uzumaki) — avatar 🍥, catchphrase "Dattebayo!"
 - Touch DnD: `@dnd-kit/core` + `@dnd-kit/sortable`
-- Chat history: Load từ DB qua `GET /api/v1/ai/chat-history?child_id=&limit=20`
+- Database: **Supabase** (không có FastAPI backend — đã migrate)
 
 **Bước 3:** Thực thi tuần tự các bước còn lại trong `docs/22_upgrade_plan.md`.
 
 ---
 
-## 🏗️ KIẾN TRÚC DỰ ÁN
+## 🏗️ KIẾN TRÚC DỰ ÁN (2026-06-05)
 
 ```
 e:\THIET KE TKB CHO BE\
-├── backend/          FastAPI Python
-│   ├── app/
-│   │   ├── main.py   (CORS, routers — chat_router ĐÃ XÓA)
-│   │   ├── modules/ai/router.py  (POST /ai/chat, GET /ai/chat-history)
-│   │   ├── modules/ai/context.py (AIContextBuilder, build_system_prompt)
-│   │   └── services/schedules.py
-│   └── tests/        (17 tests — phải pass)
-└── frontend/         NextJS 15 TypeScript
-    ├── src/app/chat/page.tsx      (Naruto AI companion)
-    ├── src/app/schedule/          (4-level schedule system)
-    │   └── components/
-    │       ├── DayDesignModal.tsx (Touch DnD cần implement @dnd-kit)
-    │       └── DayView.tsx
-    └── src/lib/api.ts             (sendChat, getChatHistory)
+└── frontend/         NextJS 14 TypeScript + Supabase-native
+    └── src/
+        ├── app/
+        │   ├── chat/page.tsx              ← Naruto AI companion + ScheduleWizardSheet
+        │   ├── schedule/
+        │   │   ├── page.tsx               ← FAB AI Planner + ScheduleWizardSheet
+        │   │   └── components/
+        │   │       ├── ScheduleWizardSheet.tsx  ← [NEW] AI Wizard 3 bước
+        │   │       ├── DayDesignModal.tsx       ← Tạo lịch ngày thủ công
+        │   │       └── DayView.tsx              ← Visual timeline
+        │   └── [home, activities, parent, ...]
+        └── lib/
+            ├── api.ts      ← Supabase + Gemini AI (includin 3 Wizard functions)
+            ├── supabase.ts ← Client config
+            └── types.ts    ← Child, Activity, Schedule, ScheduleItem
 ```
 
-## ✅ ĐÃ HOÀN THÀNH (Session 2026-06-04)
+---
 
-- [x] **P0-0** Fix route conflict: xóa `chat_router` khỏi `main.py` → `ai_router` với full context hoạt động
-- [x] **P0-1** Fix `__import__("datetime")` → import chuẩn trong `schedules.py`
-- [x] **P0-2** Fix 3 typo trong system prompt AI (`context.py`)
-- [x] **P0-3** Nâng cấp `build_system_prompt` với context đầy đủ (ngày hôm nay, lịch, phần thưởng)
-- [x] **P0-4** Thêm `GET /ai/chat-history` endpoint
-- [x] **P1-1** Xóa duplicate `api.chat`, thêm `api.getChatHistory`
-- [x] **P1-2** Fix `day_of_week` trong `DayDesignModal.tsx`: `(getDay()+6)%7`
-- [x] **P1-3** Fix `day_of_week` trong `DayView.tsx` fallback filter
-- [x] **P1-4** Viết lại `chat/page.tsx` — Naruto personality + load history từ DB
-- [x] **P1-5** Thêm confirm dialog khi đóng DayDesignModal có draftItems chưa lưu
-- [x] **P1-6** Cài `@dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities`
+## ✅ ĐÃ HOÀN THÀNH — Session 2026-06-04/05
+
+### Nhóm P0 — Critical Fixes (✅ 100%)
+- [x] Fix AI context pipeline (chat_router conflict)
+- [x] Fix datetime import trong schedules.py
+- [x] Fix typos trong system prompt AI
+- [x] Thêm GET /ai/chat-history endpoint
 - [x] 17/17 backend tests pass
+
+### Nhóm P1 — Luồng Tạo Lịch Ngày (✅ 100%)
+- [x] Fix day_of_week convention (DayDesignModal + DayView)
+- [x] Viết lại chat/page.tsx — Naruto personality + load history DB
+- [x] Confirm dialog khi đóng DayDesignModal có draft chưa lưu
+- [x] Cài @dnd-kit/core + @dnd-kit/sortable
+- [x] Fix AI parse JSON (Gemini JSON mode, bỏ regex)
+- [x] Voice intent detection (add/modify/delete)
+- [x] TTS phản hồi sau voice
+- [x] Conflict detection khi thêm item
+- [x] Visual timeline trục dọc trong DayView
+- [x] interimResults:true — hiển thị text đang nói live
+
+### Nhóm AI Schedule Wizard (✅ 100% — 2026-06-05)
+- [x] **api.ts**: `analyzeScheduleRequest()` — Gemini JSON, phân tích scope/theme/preferences
+- [x] **api.ts**: `generateSchedulePlan()` — Tạo full plan context-aware
+- [x] **api.ts**: `executeSchedulePlan()` — Batch save Supabase
+- [x] **ScheduleWizardSheet.tsx**: Wizard 3 bước (Input/Preview/Success)
+  - Voice (bé + phụ huynh) + interim text live
+  - Quick presets 6 loại
+  - Preview group by day + edit-in-place + conflict detect
+  - Toggle Merge/Thay thế lịch cũ
+  - Naruto TTS mỗi bước
+- [x] **chat/page.tsx**: Intent detection → CTA "Thiết kế lịch ngay ✨" trong bubble
+- [x] **schedule/page.tsx**: FAB Wand2 góc dưới phải
+
+**Build**: ✅ `npm run build` — 14/14 pages, 0 errors
+
+---
 
 ## 🚧 CÒN LẠI — THỰC HIỆN THEO THỨ TỰ
 
@@ -66,94 +92,71 @@ e:\THIET KE TKB CHO BE\
 
 #### [P1-7] Implement Touch DnD với @dnd-kit trong DayDesignModal
 File: `frontend/src/app/schedule/components/DayDesignModal.tsx`
-- Wrap `ActivityPool` items với `Draggable` từ `@dnd-kit/core`
-- Wrap timeline slots với `Droppable`
-- Wrap existing items trong timeline với `SortableContext` + `useSortable`
-- `DndContext` cần `TouchSensor` + `PointerSensor` để hỗ trợ cả touch lẫn mouse
-- Sensor config: `PointerSensor` với `activationConstraint: { distance: 8 }`, `TouchSensor` với `delay: 250, tolerance: 5`
+- Wrap ActivityPool items với `useDraggable` từ `@dnd-kit/core`
+- Wrap timeline slots với `useDroppable`
+- Wrap existing items với `SortableContext` + `useSortable`
+- Sensor config: `PointerSensor { distance: 8 }` + `TouchSensor { delay: 250, tolerance: 5 }`
 
-Pattern tham khảo:
 ```tsx
-import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent, DragOverlay } from '@dnd-kit/core';
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 ```
 
 #### [P1-8] Fix home/page.tsx UUID theme hash
 File: `frontend/src/app/home/page.tsx`
-- Tìm nơi dùng `charCodeAt(0)` cho theme color
-- Thay bằng hash đầy đủ: `child.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0) % 360`
+- Thay `charCodeAt(0)` bằng: `child.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0) % 360`
 
 ### P2 — Nâng Cấp UX
 
-#### [P2-1] Thêm Animations vào globals.css
-File: `frontend/src/app/globals.css`
-Thêm các keyframes:
+#### [P2-1] Animations vào globals.css
 ```css
-@keyframes confetti-fall { ... } /* cho celebrate khi complete activity */
-@keyframes star-burst { ... }    /* sticker mới mở khóa */
-@keyframes wiggle { ... }        /* avatar greeting */
-@keyframes float { ... }         /* XP badge floating */
+@keyframes confetti-fall { ... }  /* complete activity */
+@keyframes wiggle { ... }         /* avatar greeting */
+@keyframes float { ... }          /* XP badge floating */
 ```
 
-#### [P2-2] Thêm font Baloo 2 cho bé
+#### [P2-2] Font Baloo 2 (round, kid-friendly)
 File: `frontend/src/app/layout.tsx`
-- Thêm Google Fonts Baloo 2 (round, kid-friendly)
-- Áp dụng cho headings trong schedule/home
 
-#### [P2-3] Activities page — placeholder image
+#### [P2-3] Activities page — emoji placeholder + load categories từ API
 File: `frontend/src/app/activities/page.tsx`
-- Khi `activity.image_url` là null → hiển thị emoji + màu gradient từ theme
-- Load categories từ API thay vì hardcode
 
-#### [P2-4] Bottom Nav animation
+#### [P2-4] BottomNav animation — scale + bounce khi chọn tab
 File: `frontend/src/components/BottomNav.tsx`
-- Thêm `scale-110 + bounce` khi tab được chọn
-- Thêm badge count cho schedule nếu có hoạt động hôm nay
 
-#### [P2-5] Home page challenges
+#### [P2-5] Home daily challenges — dùng data thực từ schedule items hôm nay
 File: `frontend/src/app/home/page.tsx`
-- Kết nối daily challenges với dữ liệu thực từ schedule items của ngày hôm nay
-- Hiển thị progress bar thực: `completed/total`
 
 ### P3 — Tối Ưu (làm sau)
 
-#### [P3-1] Provider selection logic fix
-File: `backend/app/modules/ai/router.py`
-- `client_key` (Gemini key từ header) chỉ áp dụng cho Gemini provider
-- Tách logic: nếu có `client_key` → chọn Gemini provider cụ thể, không dùng cho OpenAI/OpenRouter
-
-#### [P3-2] Shared httpx.AsyncClient
-File: `backend/app/modules/ai/providers.py`
-- Tạo `_client_pool: dict[str, httpx.AsyncClient]` tại module level
-- `build_adapter()` reuse client từ pool thay vì tạo mới mỗi request
-
 #### [P3-3] PWA offline support
 File: `frontend/public/sw.js`
-- Cache schedule data offline
-- Sync khi có mạng lại
 
 ---
 
 ## 📝 QUY TẮC QUAN TRỌNG
 
-1. **Test trước khi commit**: `pytest -v` phải pass 17 tests
-2. **Build check**: `npm run build` phải 0 errors
-3. **Convention**: `day_of_week: 0=T2` — KHÔNG đổi
-4. **Tên AI**: Naruto (Naruto Uzumaki) — KHÔNG đổi
-5. **Không xóa module admin** — giữ nguyên cho admin debug
-6. **Không commit API key** — chỉ đọc từ env
-7. **Sau mỗi bước**: cập nhật `19_implementation_progress.md`
+1. **Build check**: `npm run build` phải 0 errors trước khi xong
+2. **Convention**: `day_of_week: 0=T2` — KHÔNG đổi
+3. **Tên AI**: Naruto (Naruto Uzumaki) — KHÔNG đổi
+4. **Không commit API key** — chỉ đọc từ `localStorage.getItem('GEMINI_API_KEY')`
+5. **Sau mỗi bước**: cập nhật `docs/19_implementation_progress.md` và `docs/22_upgrade_plan.md`
+6. **Gemini JSON mode**: LUÔN dùng `responseSchema` thay vì regex parsing
 
 ## 🔧 LỆNH PHÁT TRIỂN
 
 ```bash
-# Backend
-cd "e:\THIET KE TKB CHO BE\backend"
-python -m pytest -v                    # Chạy tests
-uvicorn app.main:app --reload --port 8001  # Dev server
-
-# Frontend  
+# Frontend (Supabase-native, không cần backend riêng)
 cd "e:\THIET KE TKB CHO BE\frontend"
-npm run dev                            # Dev server port 3000
-npm run build                          # Build check
+npm run dev          # Dev server port 3000
+npm run build        # Build check (phải 0 errors)
+```
+
+## 🔑 ENV VARIABLES CẦN THIẾT
+
+```env
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+# Gemini API key nhập runtime: Settings → Nhập key → lưu localStorage
 ```

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Wand2 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { todayStr } from '@/lib/utils/scheduleProgress';
 import { api } from '@/lib/api';
@@ -12,6 +13,8 @@ import MonthView from './components/MonthView';
 import WeekView from './components/WeekView';
 import DayView from './components/DayView';
 import DayDesignModal from './components/DayDesignModal';
+import ScheduleWizardSheet from './components/ScheduleWizardSheet';
+
 
 // ─── Reward popup ─────────────────────────────────────────────────────────────
 interface RewardPopup { id: string; xp: number }
@@ -28,13 +31,18 @@ export default function SchedulePage() {
     selectedYear,       setSelectedYear,
   } = useAppStore();
 
-  // Design modal (local — chỉ cần trong trang này)
+  // Design modal (local)
   const [designOpen, setDesignOpen] = useState(false);
+  const [prefilledTime, setPrefilledTime] = useState<string | undefined>(undefined);
 
-  // Refresh key cho DayView sau khi lưu modal
+  // AI Wizard
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Refresh keys
   const [designRefreshKey, setDesignRefreshKey] = useState(0);
   // Refresh key toàn cục — trigger khi check complete để Month/Week/Year cập nhật sticker
   const [globalRefreshKey, setGlobalRefreshKey] = useState(0);
+
 
   // Rewards
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
@@ -96,6 +104,7 @@ export default function SchedulePage() {
   ];
 
   return (
+    <>
     <main className="min-h-[100dvh] bg-gray-50 pb-nav">
       <div className="max-w-xl mx-auto px-4 pt-6">
 
@@ -164,7 +173,10 @@ export default function SchedulePage() {
             key={`day-${selectedDate}-${designRefreshKey}`}
             dateStr={selectedDate}
             childId={selectedChild.id}
-            onOpenDesign={() => setDesignOpen(true)}
+            onOpenDesign={(time?: string) => {
+              setPrefilledTime(time);
+              setDesignOpen(true);
+            }}
             onNavigate={(date) => {
               setSelectedDate(date);
               const [y, m] = date.split('-');
@@ -182,7 +194,9 @@ export default function SchedulePage() {
           dateStr={selectedDate}
           childId={selectedChild.id}
           childName={selectedChild.name}
-          onClose={() => setDesignOpen(false)}
+          childAge={selectedChild.age}
+          prefilledTime={prefilledTime}
+          onClose={() => { setDesignOpen(false); setPrefilledTime(undefined); }}
           onSaved={handleDesignSaved}
         />
       )}
@@ -199,6 +213,31 @@ export default function SchedulePage() {
           </div>
         ))}
       </div>
+
+      {/* ── FAB: AI Planner ─────────────────────────────────── */}
+      <button
+        onClick={() => setWizardOpen(true)}
+        className="fixed bottom-24 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-kid-orange to-yellow-400 text-white shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+        title="Naruto AI Planner"
+      >
+        <Wand2 size={24} />
+      </button>
     </main>
+
+    {/* AI Wizard Sheet */}
+    {wizardOpen && selectedChild && (
+      <ScheduleWizardSheet
+        child={selectedChild}
+        initialScope={scheduleViewMode === 'day' ? 'day' : 'week'}
+        initialDate={selectedDate}
+        onClose={() => setWizardOpen(false)}
+        onSaved={(_scheduleId, _weekStart) => {
+          setWizardOpen(false);
+          setGlobalRefreshKey(k => k + 1);
+          setDesignRefreshKey(k => k + 1);
+        }}
+      />
+    )}
+    </>
   );
 }

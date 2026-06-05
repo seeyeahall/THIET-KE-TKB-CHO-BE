@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Mic, MicOff, Bot, Check, GripVertical } from 'lucide-react';
+import { X, Plus, Mic, MicOff, Bot, Check, GripVertical, Trash2, Undo2 } from 'lucide-react';
 import {
   DndContext,
   DragEndEvent,
@@ -25,7 +25,9 @@ interface DayDesignModalProps {
   dateStr: string;               // 'YYYY-MM-DD'
   childId: string;
   childName: string;
+  childAge?: number;
   initialItems?: ScheduleItem[];
+  prefilledTime?: string;        // Giờ pre-filled từ DayView nút +
   onClose: () => void;
   onSaved: () => void;           // refresh Day View sau khi lưu
 }
@@ -40,18 +42,54 @@ interface DraftItem {
   activity_id?: string;
 }
 
-// Slot giờ (06:00 → 21:00 mỗi 30 phút)
-const TIME_SLOTS = Array.from({ length: 31 }, (_, i) => {
+// Slot giờ bước 30 phút (06:00 → 21:00) — dùng cho drop zones
+const TIME_SLOTS_30 = Array.from({ length: 31 }, (_, i) => {
   const totalMin = 6 * 60 + i * 30;
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 });
 
+// FIX: Thêm helper tính phút từ HH:MM
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Thêm N phút vào HH:MM → HH:MM
+function addMinutes(t: string, mins: number): string {
+  const total = Math.min(timeToMinutes(t) + mins, 21 * 60); // cap tại 21:00
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Kiểm tra 2 items có trùng giờ không
+function timeOverlap(
+  t1: string, d1: number,
+  t2: string, d2: number,
+): boolean {
+  const s1 = timeToMinutes(t1), e1 = s1 + d1;
+  const s2 = timeToMinutes(t2), e2 = s2 + d2;
+  return s1 < e2 && s2 < e1;
+}
+
+// TTS: Naruto đọc xác nhận
+function speak(text: string) {
+  if (typeof window === 'undefined') return;
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'vi-VN';
+  utt.rate = 1.1;
+  synth.speak(utt);
+}
+
 const DEFAULT_DURATION = 30;
 
 export default function DayDesignModal({
-  dateStr, childId, childName, initialItems = [], onClose, onSaved,
+  dateStr, childId, childName, childAge, initialItems = [], prefilledTime, onClose, onSaved,
 }: DayDesignModalProps) {
   const [draftItems, setDraftItems] = useState<DraftItem[]>(
     initialItems.map(i => ({
@@ -66,12 +104,12 @@ export default function DayDesignModal({
   const [pool, setPool] = useState<Activity[]>([]);
   const [dragItem, setDragItem] = useState<Activity | null>(null);
   const [dragActiveItem, setDragActiveItem] = useState<DraftItem | null>(null);
-  const [dragSlot, setDragSlot] = useState<string | null>(null);
 
-  // Text input
+  // FIX: Manual entry — khởi tạo newTime từ prefilledTime hoặc giờ tiếp theo
   const [newTitle, setNewTitle] = useState('');
-  const [newTime, setNewTime] = useState('08:00');
+  const [newTime, setNewTime] = useState(prefilledTime ?? '08:00');
   const [newDuration, setNewDuration] = useState(DEFAULT_DURATION);
+  const [conflictWarning, setConflictWarning] = useState(false);
 
   // AI
   const [aiInput, setAiInput] = useState('');
@@ -80,7 +118,15 @@ export default function DayDesignModal({
 
   // Voice
   const [listeningRole, setListeningRole] = useState<'child' | 'parent' | null>(null);
+  const [interimText, setInterimText] = useState('');  // FIX: interim voice text
   const recognitionRef = useRef<any>(null);
+
+  // Undo queue
+  const [undoItem, setUndoItem] = useState<DraftItem | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ref scroll đến item mới
+  const lastItemRef = useRef<HTMLDivElement | null>(null);
 
   // Saving
   const [saving, setSaving] = useState(false);
@@ -96,17 +142,25 @@ export default function DayDesignModal({
     }).catch(() => setPool(DEMO_POOL));
   }, []);
 
-  // ── @dnd-kit sensors — hỗ trợ cả mouse lẫn touch mobile
+  // FIX: Conflict check khi newTime/newDuration thay đổi
+  useEffect(() => {
+    const conflict = draftItems.some(i =>
+      timeOverlap(i.start_time, i.duration_minutes, newTime, newDuration)
+    );
+    setConflictWarning(conflict);
+  }, [newTime, newDuration, draftItems]);
+
+  // ── @dnd-kit sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 }, // chết để bé scroll thoải mái
+      activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 }, // hold 250ms để DnD, tách với scroll
+      activationConstraint: { delay: 250, tolerance: 5 },
     })
   );
 
-  // ── DnD handlers — dùng @dnd-kit events
+  // ── DnD handlers
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
     const activeId = String(active.id);
@@ -127,6 +181,7 @@ export default function DayDesignModal({
       if (overId.startsWith('slot-')) {
         const slot = overId.replace('slot-', '');
         if (dragItem) {
+          // FIX: Kéo từ pool → đặt vào slot cụ thể với start_time = slot
           addDraftItem({
             activity_title: dragItem.title,
             activity_theme: dragItem.theme,
@@ -136,6 +191,7 @@ export default function DayDesignModal({
             isNew: true,
           });
         } else if (dragActiveItem) {
+          // FIX: Kéo item trong timeline → update start_time THỰC SỰ
           setDraftItems(prev => prev.map(item => {
             if (item.id === dragActiveItem.id) {
               return { ...item, start_time: slot, isNew: true };
@@ -147,15 +203,16 @@ export default function DayDesignModal({
     }
     setDragItem(null);
     setDragActiveItem(null);
-    setDragSlot(null);
   }, [dragItem, dragActiveItem]);
 
-  // ── Thêm item ────────────────────────────────────────────────────────────────
+  // ── Thêm item
   const addDraftItem = (item: Omit<DraftItem, 'id'>) => {
-    setDraftItems(prev => [
-      ...prev,
-      { ...item, id: `draft-${Date.now()}-${Math.random()}` },
-    ]);
+    const newItem: DraftItem = { ...item, id: `draft-${Date.now()}-${Math.random()}` };
+    setDraftItems(prev => [...prev, newItem]);
+    // Scroll đến item mới sau render
+    setTimeout(() => {
+      lastItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
   };
 
   const handleAddManual = () => {
@@ -168,44 +225,62 @@ export default function DayDesignModal({
       isNew: true,
     });
     setNewTitle('');
+    // FIX: Auto-advance time sang slot tiếp theo
+    setNewTime(addMinutes(newTime, newDuration));
   };
 
+  // FIX: Xóa với Undo 5 giây
   const removeDraft = (id: string) => {
+    const item = draftItems.find(i => i.id === id);
+    if (!item) return;
     setDraftItems(prev => prev.filter(i => i.id !== id));
+    setUndoItem(item);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoItem(null), 5000);
   };
 
-  // ── AI gợi ý ─────────────────────────────────────────────────────────────────
+  const handleUndo = () => {
+    if (!undoItem) return;
+    setDraftItems(prev => [...prev, undoItem]);
+    setUndoItem(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  };
+
+  // ── FIX: AI gợi ý dùng JSON mode (parseScheduleItemsFromText)
   const handleAiSuggest = async () => {
     if (!aiInput.trim()) return;
     setAiLoading(true);
+    setAiSuggestions([]);
     try {
       const dayLabel = getDayLabelFull(dateStr);
-      const prompt = `Bé ${childName}, ngày ${dayLabel} (${formatShortDate(dateStr)}). Yêu cầu: ${aiInput}. Hãy gợi ý danh sách hoạt động với giờ cụ thể cho ngày này dưới dạng JSON: [{title, theme, start_time (HH:mm), duration_minutes}]`;
-      const result = await api.sendChat(childId, prompt);
-      // Parse JSON từ reply nếu có
-      const jsonMatch = result.reply.match(/\[[\s\S]*?\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      const existingItems = draftItems.map(i => ({
+        activity_title: i.activity_title,
+        start_time: i.start_time,
+        duration_minutes: i.duration_minutes,
+      }));
+
+      // FIX: Dùng JSON mode API thay vì sendChat + regex
+      const parsed = await api.parseScheduleItemsFromText(aiInput, {
+        childName,
+        childAge,
+        dateStr,
+        dayLabel,
+        existingItems,
+      });
+
+      if (parsed.length > 0) {
         setAiSuggestions(
-          parsed.map((p: any, i: number) => ({
+          parsed.map((p, i) => ({
             id: `ai-sug-${i}`,
-            activity_title: p.title ?? 'Hoạt động',
-            activity_theme: p.theme ?? 'Tự chọn',
-            start_time: p.start_time ?? '08:00',
-            duration_minutes: p.duration_minutes ?? 30,
+            activity_title: p.activity_title,
+            activity_theme: p.activity_theme,
+            start_time: p.start_time,
+            duration_minutes: p.duration_minutes,
             isNew: true,
           }))
         );
       } else {
-        // Tạo gợi ý đơn giản từ reply text
-        setAiSuggestions([{
-          id: 'ai-sug-0',
-          activity_title: aiInput,
-          activity_theme: 'Tự chọn',
-          start_time: '08:00',
-          duration_minutes: 30,
-          isNew: true,
-        }]);
+        alert('AI chưa tạo được gợi ý. Thử mô tả cụ thể hơn nhé!');
       }
     } catch {
       alert('AI chưa sẵn sàng. Thêm thủ công nhé!');
@@ -214,118 +289,171 @@ export default function DayDesignModal({
     }
   };
 
+  // Thêm tất cả AI suggestions
+  const confirmAllSuggestions = () => {
+    aiSuggestions.forEach(sug => {
+      const { id: _id, ...rest } = sug;
+      addDraftItem(rest);
+    });
+    setAiSuggestions([]);
+  };
+
   const confirmAiSuggestion = (sug: DraftItem) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, ...rest } = sug;
     addDraftItem(rest);
     setAiSuggestions(prev => prev.filter(s => s.id !== sug.id));
   };
 
-  // ── Voice STT ────────────────────────────────────────────────────────────────
+  // ── FIX: Voice pipeline mới — Intent detection JSON mode
   const startVoice = (role: 'child' | 'parent') => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { alert('Trình duyệt không hỗ trợ giọng nói.'); return; }
 
     const recognition = new SR();
     recognition.lang = 'vi-VN';
-    recognition.interimResults = false;
+    recognition.interimResults = true; // FIX: Bật interim để hiển thị live
+    recognition.continuous = false;
     recognitionRef.current = recognition;
     setListeningRole(role);
+    setInterimText('');
 
-    // Watchdog timer to prevent hanging in "listening" state on some test/headless environments
     let safetyTimer = setTimeout(() => {
-      console.warn('Speech recognition safety timeout triggered.');
       recognition.stop();
       setListeningRole(null);
-    }, 8000);
+    }, 10000);
 
-    recognition.onstart = () => {
-      clearTimeout(safetyTimer);
-      safetyTimer = setTimeout(() => {
-        recognition.stop();
-        setListeningRole(null);
-      }, 10000);
-    };
-
+    // FIX: Interim results → hiển thị text đang nghe live
     recognition.onresult = async (e: any) => {
-      clearTimeout(safetyTimer);
-      const text = e.results[0][0].transcript;
-      setListeningRole(null);
-      setAiInput(text);
-      // Tự động gửi AI
-      setAiLoading(true);
-      try {
-        const prompt = role === 'parent'
-          ? `Phụ huynh ra lệnh: "${text}". Tạo lịch hoạt động cho bé ${childName} ngày ${formatShortDate(dateStr)} dạng JSON: [{title, theme, start_time, duration_minutes}]`
-          : `Bé ${childName} nói: "${text}". Gợi ý hoạt động cho ngày ${formatShortDate(dateStr)} dạng JSON: [{title, theme, start_time, duration_minutes}]`;
-        const result = await api.sendChat(childId, prompt);
-        const jsonMatch = result.reply.match(/\[[\s\S]*?\]/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          setAiSuggestions(
-            parsed.map((p: any, i: number) => ({
-              id: `voice-sug-${i}`,
-              activity_title: p.title ?? 'Hoạt động',
-              activity_theme: p.theme ?? 'Tự chọn',
-              start_time: p.start_time ?? '08:00',
-              duration_minutes: p.duration_minutes ?? 30,
-              isNew: true,
-            }))
-          );
+      let interim = '';
+      let final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          final += e.results[i][0].transcript;
         } else {
-          // Fallback: thêm trực tiếp
+          interim += e.results[i][0].transcript;
+        }
+      }
+      if (interim) setInterimText(interim);
+
+      if (final) {
+        clearTimeout(safetyTimer);
+        setInterimText('');
+        setListeningRole(null);
+        setAiInput(final);
+        setAiLoading(true);
+
+        try {
+          const dayLabel = getDayLabelFull(dateStr);
+          const existingItems = draftItems.map(i => ({
+            activity_title: i.activity_title,
+            start_time: i.start_time,
+            duration_minutes: i.duration_minutes,
+          }));
+
+          // FIX: Dùng detectVoiceIntent với JSON mode
+          const result = await api.detectVoiceIntent(final, {
+            childName,
+            dateStr,
+            dayLabel,
+            existingItems,
+          });
+
+          if (result.intent === 'add' && result.items && result.items.length > 0) {
+            // Auto-apply items
+            result.items.forEach(item => {
+              addDraftItem({
+                activity_title: item.activity_title,
+                activity_theme: item.activity_theme,
+                start_time: item.start_time,
+                duration_minutes: item.duration_minutes,
+                isNew: true,
+              });
+            });
+            // FIX: TTS phản hồi Naruto
+            speak(result.confirmMessage);
+          } else if (result.intent === 'modify' && result.target_title) {
+            // Sửa item có tên gần đúng
+            setDraftItems(prev => prev.map(item => {
+              if (item.activity_title.toLowerCase().includes(result.target_title!.toLowerCase())) {
+                return {
+                  ...item,
+                  start_time: result.new_start_time ?? item.start_time,
+                  duration_minutes: result.new_duration_minutes ?? item.duration_minutes,
+                  isNew: true,
+                };
+              }
+              return item;
+            }));
+            speak(result.confirmMessage);
+          } else if (result.intent === 'delete' && result.target_title) {
+            const found = draftItems.find(i =>
+              i.activity_title.toLowerCase().includes(result.target_title!.toLowerCase())
+            );
+            if (found) removeDraft(found.id);
+            speak(result.confirmMessage);
+          } else {
+            // Fallback: nếu intent không rõ → thêm vào AI suggestions để user confirm
+            const items = await api.parseScheduleItemsFromText(final, {
+              childName, childAge, dateStr, dayLabel, existingItems,
+            });
+            if (items.length > 0) {
+              setAiSuggestions(items.map((p, i) => ({
+                id: `voice-sug-${i}`,
+                activity_title: p.activity_title,
+                activity_theme: p.activity_theme,
+                start_time: p.start_time,
+                duration_minutes: p.duration_minutes,
+                isNew: true,
+              })));
+            }
+            speak(result.confirmMessage);
+          }
+        } catch {
+          // Hard fallback
           addDraftItem({
-            activity_title: text,
+            activity_title: final,
             activity_theme: 'Tự chọn',
-            start_time: '08:00',
-            duration_minutes: 30,
+            start_time: newTime,
+            duration_minutes: DEFAULT_DURATION,
             isNew: true,
           });
         }
-      } catch {
-        addDraftItem({
-          activity_title: text,
-          activity_theme: 'Tự chọn',
-          start_time: '08:00',
-          duration_minutes: 30,
-          isNew: true,
-        });
+        setAiLoading(false);
       }
-      setAiLoading(false);
     };
 
     recognition.onerror = (e: any) => {
       clearTimeout(safetyTimer);
       console.error('Speech recognition error', e);
-      alert('Lỗi nhận diện giọng nói: ' + e.error + '. Vui lòng kiểm tra quyền micro hoặc thử gõ tay.');
+      setInterimText('');
       setListeningRole(null);
     };
-    
+
     recognition.onend = () => {
       clearTimeout(safetyTimer);
+      setInterimText('');
       setListeningRole(null);
     };
-    
+
     try {
       recognition.start();
-    } catch (err) {
+    } catch {
       clearTimeout(safetyTimer);
-      alert('Không thể bắt đầu ghi âm. Thử lại sau.');
       setListeningRole(null);
     }
   };
 
   const stopVoice = () => {
     recognitionRef.current?.stop();
+    setInterimText('');
     setListeningRole(null);
   };
 
-  // ── Lưu lịch ─────────────────────────────────────────────────────────────────
+  // ── Lưu lịch
   const handleSave = async () => {
     if (draftItems.length === 0) { onClose(); return; }
     setSaving(true);
     try {
-      // Tạo schedule nếu chưa có
       const weekDate = parseLocalDate(dateStr);
       const day = weekDate.getDay();
       const mondayOffset = day === 0 ? -6 : 1 - day;
@@ -338,7 +466,7 @@ export default function DayDesignModal({
         const existing = await api.listSchedules(childId);
         const sched = existing.find(s => s.week_start_date === weekStart);
         if (sched) scheduleId = sched.id;
-      } catch {}
+      } catch { /* ignore */ }
 
       if (!scheduleId) {
         const newSched = await api.createSchedule({
@@ -352,10 +480,8 @@ export default function DayDesignModal({
       }
 
       // day_of_week: 0=T2(Mon)...6=CN(Sun) — weekday convention
-      // JS getDay(): 0=CN, 1=T2... → convert: (getDay()+6)%7
       const dow = (parseLocalDate(dateStr).getDay() + 6) % 7;
 
-      // Thêm từng item mới
       for (const item of draftItems.filter(i => i.isNew)) {
         let activityId = item.activity_id;
         if (!activityId) {
@@ -379,7 +505,7 @@ export default function DayDesignModal({
       onClose();
     } catch (e) {
       console.error('Save error:', e);
-      // Save unsaved draft items to localStorage for syncing later
+      // Offline: lưu localStorage
       const newItems = draftItems.filter(i => i.isNew);
       if (newItems.length > 0) {
         try {
@@ -394,10 +520,8 @@ export default function DayDesignModal({
             dateStr,
           }));
           localStorage.setItem(offlineKey, JSON.stringify([...existingOffline, ...toSave]));
-          alert('Đã lưu lịch tạm thời ở chế độ ngoại tuyến! Lịch sẽ tự động đồng bộ khi bạn có mạng trở lại.');
-        } catch (storageErr) {
-          console.error('Failed to save to localStorage:', storageErr);
-        }
+          alert('Đã lưu tạm thời (offline)! Sẽ tự đồng bộ khi có mạng.');
+        } catch { /* ignore */ }
       }
       onSaved();
       onClose();
@@ -410,7 +534,6 @@ export default function DayDesignModal({
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  
   if (!mounted) return null;
 
   const handleClose = () => {
@@ -442,13 +565,16 @@ export default function DayDesignModal({
               {getDayLabelFull(dateStr)}, {formatShortDate(dateStr)}
             </p>
           </div>
-          <button onClick={handleClose} className="p-2 rounded-xl hover:bg-gray-100">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-400">{draftItems.length} HĐ</span>
+            <button onClick={handleClose} className="p-2 rounded-xl hover:bg-gray-100">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto overscroll-contain flex-1 px-5 py-4 space-y-5 pb-20">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-5 py-4 space-y-5 pb-28">
 
           {/* ── AI gợi ý + Voice ──────────────────────────────── */}
           <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 shadow-sm border border-purple-100">
@@ -458,30 +584,50 @@ export default function DayDesignModal({
             <div className="flex gap-2 mb-3">
               <button
                 onClick={() => listeningRole === 'child' ? stopVoice() : startVoice('child')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                disabled={!!listeningRole && listeningRole !== 'child'}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-xs transition-all ${
                   listeningRole === 'child'
-                    ? 'bg-red-500 text-white animate-pulse'
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-200'
                     : 'bg-white border-2 border-kid-pink text-kid-pink hover:bg-pink-50'
                 }`}
               >
-                {listeningRole === 'child' ? <MicOff size={14} /> : <Mic size={14} />}
-                {listeningRole === 'child' ? 'Đang nghe...' : '🎤 Bé nói'}
+                {listeningRole === 'child' ? <MicOff size={18} className="animate-pulse" /> : <Mic size={18} />}
+                {listeningRole === 'child' ? 'Dừng nghe' : '🎤 Bé nói'}
               </button>
               <button
                 onClick={() => listeningRole === 'parent' ? stopVoice() : startVoice('parent')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                disabled={!!listeningRole && listeningRole !== 'parent'}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-xs transition-all ${
                   listeningRole === 'parent'
-                    ? 'bg-red-500 text-white animate-pulse'
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-200'
                     : 'bg-white border-2 border-kid-blue text-kid-blue hover:bg-blue-50'
                 }`}
               >
-                {listeningRole === 'parent' ? <MicOff size={14} /> : <Mic size={14} />}
-                {listeningRole === 'parent' ? 'Đang nghe...' : '🎤 Phụ huynh'}
+                {listeningRole === 'parent' ? <MicOff size={18} className="animate-pulse" /> : <Mic size={18} />}
+                {listeningRole === 'parent' ? 'Dừng nghe' : '🎤 Phụ huynh'}
               </button>
             </div>
+
+            {/* FIX: Interim voice text display */}
+            {(listeningRole || interimText) && (
+              <div className="mb-3 px-3 py-2 bg-white rounded-xl border-2 border-purple-200 min-h-[36px]">
+                <p className="text-xs font-bold text-gray-500 flex items-center gap-2">
+                  {listeningRole && (
+                    <span className="inline-flex gap-0.5 items-end">
+                      <span className="w-1 h-2 bg-purple-400 rounded animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-3 bg-purple-500 rounded animate-bounce" style={{ animationDelay: '100ms' }} />
+                      <span className="w-1 h-4 bg-purple-600 rounded animate-bounce" style={{ animationDelay: '200ms' }} />
+                      <span className="w-1 h-3 bg-purple-500 rounded animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  )}
+                  {interimText || (listeningRole ? 'Đang nghe...' : '')}
+                </p>
+              </div>
+            )}
+
             {!isSecure && (
               <p className="text-[10px] text-red-500 font-bold mb-3 text-center">
-                ⚠️ Ghi âm giọng nói yêu cầu kết nối bảo mật HTTPS (hoặc localhost)
+                ⚠️ Ghi âm yêu cầu HTTPS hoặc localhost
               </p>
             )}
 
@@ -508,20 +654,30 @@ export default function DayDesignModal({
               </button>
             </div>
 
-            {/* AI gợi ý */}
+            {/* FIX: AI suggestions với Thêm tất cả */}
             {aiSuggestions.length > 0 && (
               <div className="mt-3 space-y-2">
-                <p className="text-[10px] font-black text-purple-500">✨ AI gợi ý — Chọn để thêm:</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black text-purple-500">✨ AI gợi ý — Chọn để thêm:</p>
+                  {aiSuggestions.length > 1 && (
+                    <button
+                      onClick={confirmAllSuggestions}
+                      className="text-[10px] font-black text-white bg-purple-500 hover:bg-purple-600 rounded-lg px-2 py-1 transition-colors"
+                    >
+                      Thêm tất cả ({aiSuggestions.length})
+                    </button>
+                  )}
+                </div>
                 {aiSuggestions.map(sug => (
-                  <div key={sug.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-purple-200">
-                    <span>{themeEmoji(sug.activity_theme)}</span>
+                  <div key={sug.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-purple-200 shadow-sm">
+                    <span className="text-lg">{themeEmoji(sug.activity_theme)}</span>
                     <div className="flex-1">
                       <p className="text-xs font-bold text-gray-700">{sug.activity_title}</p>
-                      <p className="text-[10px] text-gray-400">{sug.start_time} • {sug.duration_minutes}p</p>
+                      <p className="text-[10px] text-gray-400">{sug.start_time} • {sug.duration_minutes}p • {sug.activity_theme}</p>
                     </div>
                     <button
                       onClick={() => confirmAiSuggestion(sug)}
-                      className="bg-kid-green text-white rounded-lg p-1.5 hover:bg-green-600"
+                      className="bg-kid-green text-white rounded-lg p-1.5 hover:bg-green-600 transition-colors"
                     >
                       <Check size={14} />
                     </button>
@@ -531,7 +687,7 @@ export default function DayDesignModal({
             )}
           </div>
 
-          {/* ── ActivityPool ─────────────────────────────────────── */}
+          {/* ── ActivityPool + Timeline với dnd-kit ──────── */}
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -548,31 +704,48 @@ export default function DayDesignModal({
               </div>
             </div>
 
-            {/* ── Timeline với drop zones ─────────────────────────── */}
+            {/* ── Timeline hợp nhất: items + drop zones cùng 1 container */}
             <div>
-              <p className="text-xs font-black text-gray-500 mb-2">⏰ Timeline ngày</p>
-              <div className="space-y-1 max-h-72 overflow-y-auto border border-gray-100 rounded-2xl p-3 bg-gray-50 scrollbar-hide">
-                {/* Items đã thêm */}
+              <p className="text-xs font-black text-gray-500 mb-2">⏰ Timeline — kéo vào ô giờ</p>
+              <div className="border border-gray-100 rounded-2xl bg-gray-50 overflow-hidden">
+                {/* Items đã thêm (sortable) */}
                 {itemsSorted.length > 0 && (
                   <SortableContext items={itemsSorted.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-1 mb-2">
-                      {itemsSorted.map(item => (
-                        <SortableDraftItem key={item.id} item={item} onRemove={removeDraft} />
+                    <div className="p-3 space-y-1.5 border-b border-gray-100">
+                      <p className="text-[10px] font-black text-gray-400 mb-2">Đã thêm vào lịch:</p>
+                      {itemsSorted.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          ref={idx === itemsSorted.length - 1 ? lastItemRef : undefined}
+                        >
+                          <SortableDraftItem item={item} onRemove={removeDraft} />
+                        </div>
                       ))}
                     </div>
                   </SortableContext>
                 )}
 
-                {/* Drop zones — @dnd-kit DroppableTimeSlot (touch-enabled) */}
-                {TIME_SLOTS.filter(slot =>
-                  !itemsSorted.some(i => i.start_time === slot)
-                ).map(slot => (
-                  <DroppableTimeSlot key={slot} slot={slot} isDragging={!!dragItem || !!dragActiveItem} />
-                ))}
+                {/* FIX: Drop zones — LUÔN HIỂN THỊ (không filter bởi isDragging) */}
+                <div className="p-3 max-h-60 overflow-y-auto scrollbar-hide">
+                  <p className="text-[10px] font-black text-gray-400 mb-2">
+                    {dragItem || dragActiveItem ? '📌 Thả vào ô giờ:' : 'Ô giờ trống:'}
+                  </p>
+                  <div className="space-y-1">
+                    {TIME_SLOTS_30.filter(slot =>
+                      !itemsSorted.some(i => i.start_time === slot)
+                    ).map(slot => (
+                      <DroppableTimeSlot
+                        key={slot}
+                        slot={slot}
+                        isDragging={!!(dragItem || dragActiveItem)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* DragOverlay — preview đẹp khi đang kéo */}
+            {/* DragOverlay */}
             <DragOverlay>
               {dragItem ? (
                 <div className="flex-shrink-0 bg-white border-2 border-kid-orange rounded-xl p-2.5 shadow-xl w-24 text-center select-none opacity-95 rotate-2">
@@ -593,8 +766,7 @@ export default function DayDesignModal({
             </DragOverlay>
           </DndContext>
 
-
-          {/* ── Nhập text nhanh ───────────────────────────────── */}
+          {/* ── FIX: Nhập tay nâng cấp ─────────────────────── */}
           <div className="bg-gray-50 rounded-2xl p-4">
             <p className="text-xs font-black text-gray-500 mb-3">✏️ Thêm nhanh bằng tay</p>
             <div className="space-y-2">
@@ -607,13 +779,25 @@ export default function DayDesignModal({
                 className="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-700 focus:outline-none focus:border-kid-blue"
               />
               <div className="flex gap-2">
-                <select
-                  value={newTime}
-                  onChange={e => setNewTime(e.target.value)}
-                  className="flex-1 bg-white border-2 border-gray-200 rounded-xl px-2 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:border-kid-blue"
-                >
-                  {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                {/* FIX: input type=time step=900 (15p) thay vì select 30p */}
+                <div className="flex-1 relative">
+                  <input
+                    type="time"
+                    step="900"
+                    min="06:00"
+                    max="21:00"
+                    value={newTime}
+                    onChange={e => setNewTime(e.target.value)}
+                    className={`w-full bg-white border-2 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none transition-colors ${
+                      conflictWarning ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-kid-blue'
+                    }`}
+                  />
+                  {conflictWarning && (
+                    <p className="absolute -bottom-4 left-0 text-[10px] text-red-500 font-bold whitespace-nowrap">
+                      ⚠️ Trùng giờ!
+                    </p>
+                  )}
+                </div>
                 <select
                   value={newDuration}
                   onChange={e => setNewDuration(Number(e.target.value))}
@@ -634,11 +818,23 @@ export default function DayDesignModal({
             </div>
           </div>
 
-
+          {/* Undo bar */}
+          {undoItem && (
+            <div className="flex items-center gap-3 bg-gray-800 text-white rounded-2xl px-4 py-3 animate-fade-in-up">
+              <Trash2 size={16} className="text-gray-400 flex-shrink-0" />
+              <p className="flex-1 text-xs font-bold truncate">Đã xóa "{undoItem.activity_title}"</p>
+              <button
+                onClick={handleUndo}
+                className="flex items-center gap-1 text-xs font-black text-kid-yellow hover:text-yellow-300 flex-shrink-0"
+              >
+                <Undo2 size={14} /> Hoàn tác
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 pt-4 pb-8 md:pb-6 border-t border-gray-100 bg-white pb-safe">
+        <div className="px-5 pt-4 pb-8 md:pb-6 border-t border-gray-100 bg-white">
           <p className="text-xs text-gray-400 font-bold text-center mb-3">
             {draftItems.length} hoạt động trong lịch ngày này
           </p>
@@ -648,7 +844,7 @@ export default function DayDesignModal({
             className="w-full bg-gradient-to-r from-kid-green to-green-500 text-white font-black text-lg py-4 rounded-2xl shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3 disabled:opacity-60"
           >
             {saving ? (
-              <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-[3px] border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <>✅ Lưu lịch ngày</>
             )}
@@ -670,7 +866,7 @@ const DEMO_POOL: Activity[] = [
   { id:'p6', title:'Khiêu vũ', slug:'khieu-vu', theme:'Âm nhạc', duration_minutes:20, difficulty:'Dễ', requires_parent:false, status:'published' },
 ];
 
-// ── @dnd-kit: ActivityPool draggable item ─────────────────────────────────────
+// ── @dnd-kit: ActivityPool draggable item
 function DraggablePoolItem({ activity }: { activity: Activity }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `pool-${activity.id}`,
@@ -693,27 +889,27 @@ function DraggablePoolItem({ activity }: { activity: Activity }) {
   );
 }
 
-// ── @dnd-kit: Timeline droppable slot ────────────────────────────────────────
+// ── @dnd-kit: Timeline droppable slot — LUÔN HIỂN THỊ
 function DroppableTimeSlot({ slot, isDragging }: { slot: string; isDragging: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `slot-${slot}` });
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold border-2 border-dashed transition-all ${
+      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold border-2 transition-all ${
         isOver
           ? 'border-kid-orange bg-orange-50 text-kid-orange scale-[1.02] shadow-md'
           : isDragging
-          ? 'border-yellow-200 bg-yellow-50 text-yellow-400'
-          : 'border-gray-200 text-gray-300'
+          ? 'border-yellow-300 bg-yellow-50 text-yellow-500'
+          : 'border-dashed border-gray-200 text-gray-300 hover:border-gray-300'
       }`}
     >
-      <span className="text-gray-400 w-10 font-mono">{slot}</span>
-      <span>{isOver ? '📌 Thả vào đây!' : isDragging ? '↓ Kéo đến đây' : 'Trống'}</span>
+      <span className="text-gray-400 w-10 font-mono text-[10px]">{slot}</span>
+      <span className="text-[11px]">{isOver ? '📌 Thả vào đây!' : isDragging ? '↓ Kéo đến đây' : 'Trống'}</span>
     </div>
   );
 }
 
-// ── @dnd-kit: Timeline sortable item ──────────────────────────────────────────
+// ── @dnd-kit: Timeline sortable item
 function SortableDraftItem({ item, onRemove }: { item: DraftItem; onRemove: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -729,27 +925,26 @@ function SortableDraftItem({ item, onRemove }: { item: DraftItem; onRemove: (id:
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-gray-200 shadow-sm animate-fade-in-up"
+      className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-200 shadow-sm animate-fade-in-up"
     >
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+        className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 flex-shrink-0 touch-none"
       >
         <GripVertical size={16} />
       </div>
       <span className="text-base flex-shrink-0">{themeEmoji(item.activity_theme)}</span>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-gray-700 truncate">{item.activity_title}</p>
-        <p className="text-[10px] text-gray-400">{item.start_time} • {item.duration_minutes}p</p>
+        <p className="text-[10px] text-gray-400">{item.start_time} • {item.duration_minutes}p • {item.activity_theme}</p>
       </div>
       <button
         onClick={() => onRemove(item.id)}
-        className="text-gray-300 hover:text-red-400 p-0.5 rounded flex-shrink-0"
+        className="text-gray-300 hover:text-red-400 p-1 rounded transition-colors flex-shrink-0"
       >
         <X size={14} />
       </button>
     </div>
   );
 }
-

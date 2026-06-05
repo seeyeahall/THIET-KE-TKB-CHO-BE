@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Mic, Volume2, VolumeX, RefreshCw, Zap } from 'lucide-react';
+import { Send, Mic, Volume2, VolumeX, RefreshCw, Zap, Wand2 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import ScheduleWizardSheet from '@/app/schedule/components/ScheduleWizardSheet';
+
 
 interface Message {
   id?: string;
@@ -16,9 +18,11 @@ interface Message {
 const QUICK_QUESTIONS = [
   '🌟 Hôm nay mình làm gì vui?',
   '🎯 Gợi ý hoạt động cho mình',
-  '📅 Đặt lịch giúp mình nhé!',
+  '📅 Lên lịch hôm nay',
+  '📆 Tạo lịch cả tuần',
   '🍥 Naruto kể chuyện đi!',
 ];
+
 
 const NARUTO_AVATAR = () => (
   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-yellow-400 flex items-center justify-center text-lg flex-shrink-0 shadow-md">
@@ -36,7 +40,12 @@ export default function ChatPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  // Wizard state
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardInitialText, setWizardInitialText] = useState('');
+  const [wizardScope, setWizardScope] = useState<'day' | 'week'>('week');
   const bottomRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -172,8 +181,8 @@ export default function ChatPage() {
         reply = `${name} ơi, đừng buồn nha! Hít sâu và mỉm cười đi. Mình ở đây với bạn nè! 🍥`;
       else if (['vui', 'happy', 'thích'].some(w => lower.includes(w)))
         reply = `Tuyệt vời quá ${name}! Mình cũng vui lây rồi! Kể cho mình nghe thêm nào! ⚡`;
-      else if (['lịch', 'hoạt động'].some(w => lower.includes(w)))
-        reply = `${name} muốn lên kế hoạch hả! Vào trang Lịch Biểu để tạo lịch tuần nhé! 📅 Dattebayo!`;
+      else if (['lịch', 'hoạt động', 'tuần', 'hôm nay'].some(w => lower.includes(w)))
+        reply = `${name} muốn lên kế hoạch hả! Naruto sẽ thiết kế lịch cho bạn ngay! 📅 Dattebayo!`;
       else
         reply = `${name} nói chuyện thật thú vị! Mình rất thích trò chuyện với bạn. Hỏi thêm đi nào! 🍥`;
       setMessages(m => [...m, { role: 'assistant', content: reply }]);
@@ -183,9 +192,21 @@ export default function ChatPage() {
     }
   };
 
+  // Mở wizard với context từ chat
+  const openWizardFromChat = (text: string, scope: 'day' | 'week' = 'week') => {
+    setWizardInitialText(text);
+    setWizardScope(scope);
+    setWizardOpen(true);
+  };
+
+  // Kiểm tra reply Naruto có liên quan lịch không
+  const isScheduleReply = (reply: string) =>
+    ['lịch', 'hoạt động', 'thiết kế', 'kế hoạch'].some(w => reply.toLowerCase().includes(w));
+
   if (!selectedChild) return null;
 
   return (
+    <>
     <main
       className="flex flex-col bg-gradient-to-b from-orange-50 to-yellow-50"
       style={{ height: 'calc(100dvh - var(--nav-height, 4rem) - env(safe-area-inset-bottom, 0px))' }}
@@ -215,16 +236,22 @@ export default function ChatPage() {
 
       {/* Quick Questions */}
       <div className="flex gap-2 px-4 py-2.5 overflow-x-auto scrollbar-hide flex-shrink-0">
-        {QUICK_QUESTIONS.map(q => (
-          <button
-            key={q}
-            onClick={() => send(q.replace(/^[^\s]+\s/, ''))}
-            disabled={sending}
-            className="flex-shrink-0 text-xs font-bold px-3 py-1.5 bg-white rounded-full border-2 border-orange-200 text-orange-600 hover:border-orange-400 hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
-          >
-            {q}
-          </button>
-        ))}
+          {QUICK_QUESTIONS.map(q => (
+            <button
+              key={q}
+              onClick={() => {
+                const text = q.replace(/^[^\s]+\s/, '');
+                // Quick schedule buttons mở wizard trực tiếp
+                if (q.includes('Lên lịch hôm nay')) { openWizardFromChat('Lên lịch hôm nay', 'day'); return; }
+                if (q.includes('Tạo lịch cả tuần')) { openWizardFromChat('Tạo lịch cả tuần vui vẻ', 'week'); return; }
+                send(text);
+              }}
+              disabled={sending}
+              className="flex-shrink-0 text-xs font-bold px-3 py-1.5 bg-white rounded-full border-2 border-orange-200 text-orange-600 hover:border-orange-400 hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+            >
+              {q}
+            </button>
+          ))}
       </div>
 
       {/* Messages */}
@@ -251,14 +278,25 @@ export default function ChatPage() {
                   {selectedChild.name[0].toUpperCase()}
                 </div>
               )}
-              <div
-                className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm font-bold leading-relaxed shadow-sm ${
-                  msg.role === 'user'
-                    ? 'bg-gradient-to-br from-orange-400 to-yellow-400 text-white rounded-br-sm'
-                    : 'bg-white text-gray-700 rounded-bl-sm border border-orange-100'
-                }`}
-              >
-                {msg.content}
+              <div className="flex flex-col gap-1.5 max-w-[78%]">
+                <div
+                  className={`px-4 py-3 rounded-2xl text-sm font-bold leading-relaxed shadow-sm ${
+                    msg.role === 'user'
+                      ? 'bg-gradient-to-br from-orange-400 to-yellow-400 text-white rounded-br-sm'
+                      : 'bg-white text-gray-700 rounded-bl-sm border border-orange-100'
+                  }`}
+                >
+                  {msg.content}
+                </div>
+                {/* CTA nếu Naruto đề cập lịch */}
+                {msg.role === 'assistant' && isScheduleReply(msg.content) && (
+                  <button
+                    onClick={() => openWizardFromChat(input || msg.content, 'week')}
+                    className="self-start flex items-center gap-2 text-xs font-black px-3 py-2 bg-gradient-to-r from-kid-orange to-yellow-400 text-white rounded-xl shadow-md hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <Wand2 size={13} /> Thiết kế lịch ngay ✨
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -320,5 +358,23 @@ export default function ChatPage() {
         </div>
       </div>
     </main>
+
+    {/* ScheduleWizardSheet overlay */}
+    {wizardOpen && selectedChild && (
+      <ScheduleWizardSheet
+        child={selectedChild}
+        initialText={wizardInitialText}
+        initialScope={wizardScope}
+        onClose={() => setWizardOpen(false)}
+        onSaved={(_scheduleId, _weekStart) => {
+          setWizardOpen(false);
+          setMessages(m => [...m, {
+            role: 'assistant',
+            content: `Dattebayo! 🍥 Mình đã lưu lịch cho ${selectedChild.name} rồi! Vào trang Lịch để xem nhé! 📅⚡`,
+          }]);
+        }}
+      />
+    )}
+    </>
   );
 }

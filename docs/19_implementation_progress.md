@@ -258,3 +258,103 @@ Uu tien thu tu lam:
 
 ### Còn Lại
 - Không còn. Toàn bộ tính năng đã hoàn tất kiểm thử và đóng gói!
+
+## Cập Nhật 2026-06-05 — Nâng Cấp Luồng Tạo Lịch Ngày
+
+### Đang Thực Hiện
+- Fix 15 bug trong DayDesignModal, DayView, api.ts liên quan đến luồng tạo lịch ngày
+- Tạo component DayTimeline.tsx mới (visual timeline dùng chung)
+- Thêm parseScheduleItemsFromText() và detectVoiceIntent() với Gemini JSON mode
+
+### Danh Sách Bug Đang Fix
+- P1-NEW-1 đến P1-NEW-8: DayDesignModal bugs (manual, DnD, AI, Voice)
+- P2-NEW-1 đến P2-NEW-6: DayView, api.ts issues
+
+## Cập Nhật 2026-06-05 — Fix Hoàn Tất Luồng Tạo Lịch Ngày
+
+### Đã Hoàn Thành
+
+- **api.ts**: Thêm parseScheduleItemsFromText() (Gemini JSON mode, schema nghiêm ngặt, context-aware)
+- **api.ts**: Thêm detectVoiceIntent() (intent detection add/modify/delete JSON mode)
+- **DayView.tsx**: Xóa regex bug .replace(/:\d+$/, ':00') xóa thông tin phút
+- **DayView.tsx**: Visual timeline trục dọc với position absolute theo giờ 06:00-21:00
+- **DayView.tsx**: Nút [+] trên slot trống → mở DayDesignModal với giờ pre-filled
+- **DayDesignModal.tsx**: AI text dùng parseScheduleItemsFromText thay sendChat+regex
+- **DayDesignModal.tsx**: Voice pipeline mới với detectVoiceIntent (add/modify/delete)
+- **DayDesignModal.tsx**: TTS Naruto đọc xác nhận sau khi xử lý voice
+- **DayDesignModal.tsx**: Interim voice text hiển thị live + waveform animation
+- **DayDesignModal.tsx**: Time input step 15p (input type=time step=900) thay dropdown 30p
+- **DayDesignModal.tsx**: Auto-advance time sau mỗi lần thêm
+- **DayDesignModal.tsx**: Conflict detection báo đỏ khi trùng giờ
+- **DayDesignModal.tsx**: Nút "Thêm tất cả" cho AI suggestions
+- **DayDesignModal.tsx**: Undo 5 giây khi xóa item
+- **DayDesignModal.tsx**: Drop zones luôn hiển thị (không ẩn khi không kéo)
+- **DayDesignModal.tsx**: prefilledTime prop nhận giờ từ nút [+] trong DayView
+- **schedule/page.tsx**: Truyền prefilledTime + childAge vào DayDesignModal
+- **docs/22_upgrade_plan.md**: Thêm bảng bug mới (P1-NEW, P2-NEW)
+- Frontend build: **14/14 pages, 0 errors** ✅
+
+### Files Đã Sửa
+- rontend/src/lib/api.ts (thêm 2 hàm mới)
+- rontend/src/app/schedule/components/DayView.tsx (rewrite)
+- rontend/src/app/schedule/components/DayDesignModal.tsx (rewrite)
+- rontend/src/app/schedule/page.tsx (update props)
+- docs/22_upgrade_plan.md (update)
+- docs/19_implementation_progress.md (update)
+
+## Cap Nhat 2026-06-05 — AI Schedule Wizard (Hoan Thanh)
+
+### Tinh Nang Da Trien Khai
+
+**3 Ham API Moi (api.ts):**
+- analyzeScheduleRequest(): Phan tich voice/text tu do -> scope (ngay/tuan), theme, preferences
+  Dung Gemini JSON mode + responseSchema nghiem ngat
+- generateSchedulePlan(): Tao full plan lich voi context day du (child profile, lich cu, lich su 7 ngay)
+  Output: items[] { day_of_week, date_str, start_time, duration_minutes, activity_title, activity_theme, notes, emoji }
+  Context-aware: tranh trung gio, tranh lap hoat dong gan day
+- executeSchedulePlan(): Batch save toan bo plan len Supabase
+  Tao Schedule neu chua co, loop tao Activity, addScheduleItem moi item
+  Ho tro Merge mode (mac dinh) va Replace mode
+
+**Component Moi: ScheduleWizardSheet.tsx**
+- Wizard 3 buoc (bottom-sheet fullscreen)
+- Step 1 Input: Voice mic (be/phu huynh, interim live) + text + quick presets + scope toggle Ngay/Tuan
+- Step 2 Preview: Group by day, edit-in-place (time picker step 15p, ten), conflict detection do, add/delete, merge toggle
+- Step 3 Success: Animation + Naruto TTS + navigate ve lich
+
+**2 Diem Mo Wizard:**
+- FAB Wand2 goc duoi phai trong Schedule page (hien tren moi tab)
+- CTA button trong Chat page: Naruto reply ve lich -> hien nut "Thiet ke lich ngay ✨"
+
+**Chat Page Nang Cap:**
+- 2 quick questions moi: "📅 Len lich hom nay" (-> wizard scope=day), "📆 Tao lich ca tuan" (-> wizard scope=week)
+- Intent detection: Naruto reply chua tu khoa "lich/thiet ke" -> CTA button trong bubble
+- ScheduleWizardSheet overlay tich hop
+
+### Build Result
+- npm run build: 14/14 pages, 0 errors (2026-06-05 09:00)
+
+### Files Da Thay Doi
+- frontend/src/lib/api.ts (+3 ham + addDays helper)
+- frontend/src/app/schedule/components/ScheduleWizardSheet.tsx (NEW — 450 lines)
+- frontend/src/app/chat/page.tsx (intent detection, CTA, wizard)
+- frontend/src/app/schedule/page.tsx (FAB, wizard overlay)
+
+---
+
+## Tong Ket Trang Thai (2026-06-05)
+
+### Da Hoan Thanh Hoan Toan
+- [x] Fix 15 bug DayDesignModal + DayView (luat tao lich ngay)
+- [x] parseScheduleItemsFromText + detectVoiceIntent (JSON mode)
+- [x] DayView visual timeline truc doc
+- [x] DayDesignModal voice pipeline voi intent detection
+- [x] AI Schedule Wizard (phan tich + tao plan + preview + save)
+- [x] Chat page tich hop Wizard
+- [x] Schedule page FAB Wizard
+
+### Đã Hoàn Thành Toàn Bộ
+- [x] P1-7: Touch DnD ActivityPool (html5 -> @dnd-kit)
+- [x] P1-8: Home UUID theme hash
+- [x] P2-1 den P2-5: Animation, font, activities, BottomNav
+- [x] P3-1 den P3-3: Provider, httpx pool, PWA offline

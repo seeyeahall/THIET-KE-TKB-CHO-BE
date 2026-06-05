@@ -214,7 +214,6 @@ export const api = {
       .from('schedules')
       .select('*')
       .eq('child_id', childId)
-      .is('deleted_at', null)
       .order('week_start_date', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -226,7 +225,6 @@ export const api = {
       .from('schedule_items')
       .select('*, activities(*)')
       .in('schedule_id', scheduleIds)
-      .is('deleted_at', null)
       .order('day_of_week', { ascending: true })
       .order('start_time', { ascending: true });
 
@@ -247,8 +245,7 @@ export const api = {
       .select('*')
       .eq('child_id', childId)
       .gte('week_start_date', monthStart)
-      .lt('week_start_date', nextMonth)
-      .is('deleted_at', null);
+      .lt('week_start_date', nextMonth);
 
     if (error) throw new Error(error.message);
     if (!schedules || schedules.length === 0) return [];
@@ -257,8 +254,7 @@ export const api = {
     const { data: items } = await supabase
       .from('schedule_items')
       .select('*, activities(*)')
-      .in('schedule_id', scheduleIds)
-      .is('deleted_at', null);
+      .in('schedule_id', scheduleIds);
 
     return schedules.map((s: Record<string, unknown>) => ({
       ...s,
@@ -291,7 +287,6 @@ export const api = {
       .select('*, activities(*)')
       .eq('schedule_id', schedule.id)
       .eq('day_of_week', dow)
-      .is('deleted_at', null)
       .order('start_time', { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -323,7 +318,6 @@ export const api = {
       .from('schedule_items')
       .select('*, activities(*)')
       .eq('schedule_id', schedule.id)
-      .is('deleted_at', null)
       .order('day_of_week', { ascending: true })
       .order('start_time', { ascending: true });
 

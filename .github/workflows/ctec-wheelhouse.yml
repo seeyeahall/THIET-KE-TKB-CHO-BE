@@ -1,0 +1,46 @@
+name: CTEC Windows Wheelhouse
+
+on:
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheelhouse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Windows CPython 3.11 x64 wheelhouse
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p wheelhouse
+          cat > requirements.txt <<'EOF'
+          fastapi==0.128.2
+          uvicorn==0.48.0
+          pydantic==2.13.4
+          psutil==7.2.2
+          openpyxl==3.1.5
+          python-multipart==0.0.29
+          EOF
+          python -m pip install --upgrade pip
+          python -m pip download --only-binary=:all: --dest wheelhouse --python-version 311 --platform win_amd64 --implementation cp --abi cp311 -r requirements.txt
+          python - <<'PY'
+          import hashlib,json,pathlib,datetime
+          root=pathlib.Path('wheelhouse')
+          files=[]
+          for p in sorted(root.glob('*.whl')):
+              files.append({'filename':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'size':p.stat().st_size})
+          out={'schema_version':2,'created_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'target_python':'3.11','platform':'win_amd64','files':files}
+          (root/'SHA256.json').write_text(json.dumps(out,indent=2),encoding='utf-8')
+          print('wheel_count',len(files))
+          PY
+      - name: Upload wheelhouse
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctec-windows-wheelhouse-py311-x64
+          path: wheelhouse
+          if-no-files-found: error
+          retention-days: 7
